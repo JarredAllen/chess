@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "board",
+    "boards/bitboard",
+]
+
+[workspace.dependencies]
+bitflags = "2.3.3"
