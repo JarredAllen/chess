@@ -12,13 +12,66 @@ pub enum PieceKind {
     Queen,
     King,
 }
+impl PieceKind {
+    /// All the kinds of pieces there are
+    pub const KINDS: [PieceKind; 6] = [
+        Self::Pawn,
+        Self::Rook,
+        Self::Knight,
+        Self::Bishop,
+        Self::Queen,
+        Self::King,
+    ];
+
+    /// The capitalized version of the letter used for this piece in FEN
+    pub const fn fen_letter(self) -> char {
+        match self {
+            Self::Pawn => 'P',
+            Self::Rook => 'R',
+            Self::Knight => 'N',
+            Self::Bishop => 'B',
+            Self::Queen => 'Q',
+            Self::King => 'K',
+        }
+    }
+
+    /// Whether a pawn can promote into this kind of piece
+    pub const fn is_promotable(self) -> bool {
+        match self {
+            PieceKind::Pawn | PieceKind::King => false,
+            PieceKind::Rook | PieceKind::Queen | PieceKind::Knight | PieceKind::Bishop => true,
+        }
+    }
+}
 
 /// The colors a piece can have
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Color {
-    Black,
     White,
+    Black,
+}
+impl Color {
+    pub const fn other(self) -> Self {
+        match self {
+            Color::White => Color::Black,
+            Color::Black => Color::White,
+        }
+    }
+
+    pub const fn is_black(self) -> bool {
+        match self {
+            Color::White => false,
+            Color::Black => true,
+        }
+    }
+
+    pub const fn is_white(self) -> bool {
+        match self {
+            Color::White => true,
+            Color::Black => false,
+        }
+    }
 }
 
 /// A piece
@@ -29,26 +82,292 @@ pub struct Piece {
 }
 impl Piece {
     pub const fn fen_letter(self) -> char {
-        let letter = match self.kind {
-            PieceKind::Pawn => 'p',
-            PieceKind::Rook => 'r',
-            PieceKind::Knight => 'n',
-            PieceKind::Bishop => 'b',
-            PieceKind::Queen => 'q',
-            PieceKind::King => 'k',
-        };
         match self.color {
-            Color::White => letter.to_ascii_uppercase(),
-            Color::Black => letter.to_ascii_lowercase(),
+            Color::White => self.kind.fen_letter().to_ascii_uppercase(),
+            Color::Black => self.kind.fen_letter().to_ascii_lowercase(),
         }
+    }
+
+    /// Returns an iterator of all pieces that exist
+    pub fn all_pieces() -> impl Iterator<Item = Self> {
+        [
+            Self {
+                kind: PieceKind::Pawn,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::Rook,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::Knight,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::Bishop,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::Queen,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::King,
+                color: Color::White,
+            },
+            Self {
+                kind: PieceKind::Pawn,
+                color: Color::Black,
+            },
+            Self {
+                kind: PieceKind::Rook,
+                color: Color::Black,
+            },
+            Self {
+                kind: PieceKind::Knight,
+                color: Color::Black,
+            },
+            Self {
+                kind: PieceKind::Bishop,
+                color: Color::Black,
+            },
+            Self {
+                kind: PieceKind::Queen,
+                color: Color::Black,
+            },
+            Self {
+                kind: PieceKind::King,
+                color: Color::Black,
+            },
+        ]
+        .into_iter()
     }
 }
 
+/// The possible outcomes of a game
+pub enum GameOutcome {
+    /// White checkmated black
+    WhiteCheckmate,
+    /// Black checkmated white
+    BlackCheckmate,
+    /// Draw because one player couldn't make any moves
+    Draw,
+}
+
 /// Functionality belonging to all boards that can be made
-pub trait Board {
+pub trait Board: Sized {
+    /// An error type that can be returned
+    type Err: fmt::Debug;
+
+    /// Parse a board from the given FEN
     fn from_fen(fen: &str) -> Self;
 
+    /// Convert to a FEN string
     fn to_fen(&self) -> String;
+
+    /// Get the state at the start of a chess game
+    fn initial_state() -> Self;
+
+    /// Make the given move, in place
+    ///
+    /// Returns `Some(())` if the move is legal, and `None` if it isn't.
+    fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<(), Self::Err>;
+
+    fn from_move_sequence(
+        moves: impl Iterator<Item = AlgebraicNotationMove>,
+    ) -> Result<Self, Self::Err> {
+        let mut state = Self::initial_state();
+        for m in moves {
+            state.make_move(m)?;
+        }
+        Ok(state)
+    }
+
+    /// Returns if the side to move is currently in check or checkmate
+    fn check_status(&self) -> CheckStatus;
+}
+
+#[derive(Debug)]
+pub struct AlgebraicNotationMoveParseError;
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct AlgebraicNotationMove {
+    pub move_type: AlgebraicNotationMoveType,
+    pub check: CheckStatus,
+}
+impl fmt::Display for AlgebraicNotationMove {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.move_type, self.check)
+    }
+}
+impl FromStr for AlgebraicNotationMove {
+    type Err = AlgebraicNotationMoveParseError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (check, s) = match s.chars().nth_back(0) {
+            Some('+') => (CheckStatus::Check, &s[..s.len() - 1]),
+            Some('#') => (CheckStatus::Checkmate, &s[..s.len() - 1]),
+            _ => (CheckStatus::None, s),
+        };
+        Ok(Self {
+            move_type: s.parse()?,
+            check,
+        })
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum AlgebraicNotationMoveType {
+    Normal(AlgebraicNotationNormalMove),
+    CastleKingside,
+    CastleQueenside,
+}
+impl fmt::Display for AlgebraicNotationMoveType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Normal(mv) => mv.fmt(f),
+            Self::CastleKingside => f.write_str("O-O"),
+            Self::CastleQueenside => f.write_str("O-O-O"),
+        }
+    }
+}
+impl FromStr for AlgebraicNotationMoveType {
+    type Err = AlgebraicNotationMoveParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "O-O" | "0-0" => Self::CastleKingside,
+            "O-O-O" | "0-0-0" => Self::CastleQueenside,
+            _ => Self::Normal(s.parse()?),
+        })
+    }
+}
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum CheckStatus {
+    None,
+    Check,
+    Checkmate,
+}
+impl fmt::Display for CheckStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::None => "",
+            Self::Check => "+",
+            Self::Checkmate => "#",
+        })
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub struct AlgebraicNotationNormalMove {
+    pub kind: PieceKind,
+    pub from_file: Option<char>,
+    pub from_rank: Option<u8>,
+    pub capture: bool,
+    pub to_square: BoardSquare,
+    pub promotion: Option<PieceKind>,
+}
+impl fmt::Display for AlgebraicNotationNormalMove {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let piece = if self.kind == PieceKind::Pawn {
+            String::new()
+        } else {
+            self.kind.fen_letter().to_string()
+        };
+        let from_file = self.from_file.map_or_else(String::new, |c| c.to_string());
+        let from_rank = self.from_rank.map_or_else(String::new, |r| r.to_string());
+        let capture = if self.capture { "x" } else { "" };
+        let to_square = self.to_square.as_str();
+        let promotion = self
+            .promotion
+            .map_or_else(String::new, |p| p.fen_letter().to_string());
+        write!(
+            f,
+            "{}{}{}{}{}{}",
+            piece, from_file, from_rank, capture, to_square, promotion
+        )
+    }
+}
+impl FromStr for AlgebraicNotationNormalMove {
+    type Err = AlgebraicNotationMoveParseError;
+
+    fn from_str(mut s: &str) -> Result<Self, Self::Err> {
+        let kind = match s.chars().next() {
+            Some('R') => {
+                s = &s[1..];
+                PieceKind::Rook
+            }
+            Some('N') => {
+                s = &s[1..];
+                PieceKind::Knight
+            }
+            Some('B') => {
+                s = &s[1..];
+                PieceKind::Bishop
+            }
+            Some('Q') => {
+                s = &s[1..];
+                PieceKind::Queen
+            }
+            Some('K') => {
+                s = &s[1..];
+                PieceKind::King
+            }
+            _ => PieceKind::Pawn,
+        };
+        let promotion = match (s.chars().nth_back(0), s.chars().nth_back(1)) {
+            (Some('R'), Some('=')) => {
+                s = &s[..s.len() - 2];
+                Some(PieceKind::Rook)
+            }
+            (Some('N'), Some('=')) => {
+                s = &s[..s.len() - 2];
+                Some(PieceKind::Knight)
+            }
+            (Some('B'), Some('=')) => {
+                s = &s[..s.len() - 2];
+                Some(PieceKind::Bishop)
+            }
+            (Some('Q'), Some('=')) => {
+                s = &s[..s.len() - 2];
+                Some(PieceKind::Queen)
+            }
+            _ => None,
+        };
+        let to_square = BoardSquare::from_str(&s[s.len() - 2..])
+            .map_err(|_| AlgebraicNotationMoveParseError)?;
+        s = &s[..s.len() - 2];
+        let from_file = match s.chars().next() {
+            Some(c @ ('a'..='h')) => {
+                s = &s[1..];
+                Some(c)
+            }
+            _ => None,
+        };
+        let from_rank = s.chars().next().and_then(|c| {
+            if let Some(rank) = c.to_digit(10) {
+                if 0 < rank && rank <= 8 {
+                    s = &s[1..];
+                    return Some(rank as u8);
+                }
+            }
+            None
+        });
+        let capture = if s.starts_with('x') {
+            s = &s[1..];
+            true
+        } else {
+            false
+        };
+        debug_assert!(s.is_empty(), "{}", s);
+        Ok(Self {
+            kind,
+            from_file,
+            from_rank,
+            capture,
+            to_square,
+            promotion,
+        })
+    }
 }
 
 /// An index on the board
@@ -69,6 +388,71 @@ impl BoardSquare {
     /// Please use this instead of making your own so it's obvious if a deliberately-invalid square
     /// appeared.
     pub const INVALID: Self = Self(0xee);
+
+    pub const A1: Self = Self(0x00);
+    pub const B1: Self = Self(0x01);
+    pub const C1: Self = Self(0x02);
+    pub const D1: Self = Self(0x03);
+    pub const E1: Self = Self(0x04);
+    pub const F1: Self = Self(0x05);
+    pub const G1: Self = Self(0x06);
+    pub const H1: Self = Self(0x07);
+    pub const A2: Self = Self(0x10);
+    pub const B2: Self = Self(0x11);
+    pub const C2: Self = Self(0x12);
+    pub const D2: Self = Self(0x13);
+    pub const E2: Self = Self(0x14);
+    pub const F2: Self = Self(0x15);
+    pub const G2: Self = Self(0x16);
+    pub const H2: Self = Self(0x17);
+    pub const A3: Self = Self(0x20);
+    pub const B3: Self = Self(0x21);
+    pub const C3: Self = Self(0x22);
+    pub const D3: Self = Self(0x23);
+    pub const E3: Self = Self(0x24);
+    pub const F3: Self = Self(0x25);
+    pub const G3: Self = Self(0x26);
+    pub const H3: Self = Self(0x27);
+    pub const A4: Self = Self(0x30);
+    pub const B4: Self = Self(0x31);
+    pub const C4: Self = Self(0x32);
+    pub const D4: Self = Self(0x33);
+    pub const E4: Self = Self(0x34);
+    pub const F4: Self = Self(0x35);
+    pub const G4: Self = Self(0x36);
+    pub const H4: Self = Self(0x37);
+    pub const A5: Self = Self(0x40);
+    pub const B5: Self = Self(0x41);
+    pub const C5: Self = Self(0x42);
+    pub const D5: Self = Self(0x43);
+    pub const E5: Self = Self(0x44);
+    pub const F5: Self = Self(0x45);
+    pub const G5: Self = Self(0x46);
+    pub const H5: Self = Self(0x47);
+    pub const A6: Self = Self(0x50);
+    pub const B6: Self = Self(0x51);
+    pub const C6: Self = Self(0x52);
+    pub const D6: Self = Self(0x53);
+    pub const E6: Self = Self(0x54);
+    pub const F6: Self = Self(0x55);
+    pub const G6: Self = Self(0x56);
+    pub const H6: Self = Self(0x57);
+    pub const A7: Self = Self(0x60);
+    pub const B7: Self = Self(0x61);
+    pub const C7: Self = Self(0x62);
+    pub const D7: Self = Self(0x63);
+    pub const E7: Self = Self(0x64);
+    pub const F7: Self = Self(0x65);
+    pub const G7: Self = Self(0x66);
+    pub const H7: Self = Self(0x67);
+    pub const A8: Self = Self(0x70);
+    pub const B8: Self = Self(0x71);
+    pub const C8: Self = Self(0x72);
+    pub const D8: Self = Self(0x73);
+    pub const E8: Self = Self(0x74);
+    pub const F8: Self = Self(0x75);
+    pub const G8: Self = Self(0x76);
+    pub const H8: Self = Self(0x77);
 
     /// Returns if this square is valid
     ///
@@ -177,12 +561,22 @@ impl BoardSquare {
         }
     }
 
-    pub fn to_bitboard_occupancy(self) -> u64 {
-        if self.is_valid() {
-            1u64 << ((((self.0 & 0x70) >> 1) | (self.0 & 0x07)) as u64)
-        } else {
-            0
-        }
+    /// Offset the given number of ranks and files.
+    ///
+    /// Positive rank moves from a towards h, while positive file moves towards bigger numbers.
+    ///
+    /// ```rust
+    /// use board::BoardSquare;
+    /// assert_eq!(BoardSquare::D2, BoardSquare::A1.offset(1, 3));
+    /// assert_eq!(BoardSquare::A1, BoardSquare::D2.offset(-1, -3));
+    /// assert_eq!(BoardSquare::F7, BoardSquare::F7.offset(0, 0));
+    /// assert!(!BoardSquare::D1.offset(-1, 0).is_valid());
+    /// assert!(!BoardSquare::D8.offset(1, 0).is_valid());
+    /// assert!(!BoardSquare::A4.offset(0, -1).is_valid());
+    /// assert!(!BoardSquare::H4.offset(0, 1).is_valid());
+    /// ```
+    pub const fn offset(self, rank: i8, file: i8) -> Self {
+        BoardSquareOffset::from_rank_file(rank, file).offset(self)
     }
 }
 impl fmt::Debug for BoardSquare {
@@ -240,6 +634,65 @@ impl FromStr for BoardSquare {
     }
 }
 
+/// An offset on a board
+#[repr(transparent)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BoardSquareOffset(u8);
+impl BoardSquareOffset {
+    /// The offsets corresponding to all possible knight moves
+    pub const KNIGHT_MOVES: [BoardSquareOffset; 8] = [
+        Self::from_rank_file(2, 1),
+        Self::from_rank_file(2, -1),
+        Self::from_rank_file(-2, 1),
+        Self::from_rank_file(-2, -1),
+        Self::from_rank_file(1, 2),
+        Self::from_rank_file(1, -2),
+        Self::from_rank_file(-1, 2),
+        Self::from_rank_file(-1, -2),
+    ];
+
+    /// The offsets corresponding to all possible king moves
+    pub const KING_MOVES: [BoardSquareOffset; 8] = [
+        Self::from_rank_file(1, 1),
+        Self::from_rank_file(1, 0),
+        Self::from_rank_file(1, -1),
+        Self::from_rank_file(0, 1),
+        Self::from_rank_file(0, -1),
+        Self::from_rank_file(-1, 1),
+        Self::from_rank_file(-1, 0),
+        Self::from_rank_file(-1, -1),
+    ];
+
+    /// The moves a white pawn can make to attack
+    pub const WHITE_PAWN_ATTACKS: [BoardSquareOffset; 2] =
+        [Self::from_rank_file(1, 1), Self::from_rank_file(1, -1)];
+
+    /// The moves a black pawn can make to attack
+    pub const BLACK_PAWN_ATTACKS: [BoardSquareOffset; 2] =
+        [Self::from_rank_file(-1, 1), Self::from_rank_file(-1, -1)];
+
+    /// Produce a new offset from the given rank and file amounts
+    ///
+    /// In debug mode, we assert that the rank and file are both on the interval [-7,7]. In release
+    /// mode, we wrap modulo 16 and allow for -8, which invalidates any square.
+    pub const fn from_rank_file(rank: i8, file: i8) -> Self {
+        debug_assert!(-8 < rank && rank < 8);
+        debug_assert!(-8 < file && file < 8);
+        Self(((rank as u8) << 4) & 0xF0 | (file as u8) & 0x0F)
+    }
+
+    /// Offset the given board square
+    ///
+    /// If the square is already invalid, the square stays invalid
+    pub const fn offset(self, square: BoardSquare) -> BoardSquare {
+        if square.is_valid() {
+            BoardSquare(((self.0 & 0x77) + square.0) ^ (self.0 & 0x88))
+        } else {
+            square
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -282,4 +735,23 @@ mod tests {
     test_valid_board_squares!(
         test_board_square_name_round_trip(square) { assert_eq!(square, BoardSquare::from_str(square.as_str()).unwrap()) }
     );
+
+    #[test]
+    fn test_algebraic_round_trip() {
+        #[track_caller]
+        fn assert_round_trip(algebraic: &str) {
+            let round_trip = AlgebraicNotationMove::from_str(algebraic)
+                .expect("Couldn't parse input from string")
+                .to_string();
+            assert_eq!(algebraic, &round_trip);
+        }
+        assert_round_trip("e4");
+        assert_round_trip("e4#");
+        assert_round_trip("exd5");
+        assert_round_trip("Qxd5");
+        assert_round_trip("Qaxg8");
+        assert_round_trip("Nb5xd4");
+        assert_round_trip("O-O");
+        assert_round_trip("O-O-O");
+    }
 }

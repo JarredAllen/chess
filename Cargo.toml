@@ -3,7 +3,12 @@
 members = [
     "board",
     "boards/bitboard",
+    "games_database",
+    "lib/utils",
+    "lib/interner",
 ]
 
 [workspace.dependencies]
 bitflags = "2.3.3"
+quickcheck = "1.0"
+thiserror = "1.0"
