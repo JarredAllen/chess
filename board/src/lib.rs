@@ -578,6 +578,19 @@ impl BoardSquare {
     pub const fn offset(self, rank: i8, file: i8) -> Self {
         BoardSquareOffset::from_rank_file(rank, file).offset(self)
     }
+
+    /// An iterator over all valid squares on the board
+    ///
+    /// ```
+    /// assert_eq!(board::BoardSquare::all_squares().count(), 64);
+    /// ```
+    pub fn all_squares() -> impl Iterator<Item = Self> {
+        (0..64).map(|idx| {
+            let file = idx & 0x07;
+            let rank = (idx >> 3) & 0x07;
+            Self(file | (rank << 4))
+        })
+    }
 }
 impl fmt::Debug for BoardSquare {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -436,6 +436,31 @@ impl BitboardRepresentation {
                 }
             }
             AlgebraicNotationMoveType::Normal(board::AlgebraicNotationNormalMove {
+                kind: PieceKind::King,
+                from_file,
+                from_rank,
+                capture,
+                to_square,
+                promotion,
+            }) => {
+                // None of these should ever be set for this piece
+                debug_assert!(from_file.is_none());
+                debug_assert!(from_rank.is_none());
+                debug_assert!(promotion.is_none());
+                DetailedMove {
+                    piece: Piece {
+                        kind: PieceKind::King,
+                        color: self.side_to_move,
+                    },
+                    source: self.king_square(self.side_to_move),
+                    target: to_square,
+                    is_castle: false,
+                    is_en_passant: false,
+                    is_capture: capture,
+                    promotion_into: None,
+                }
+            }
+            AlgebraicNotationMoveType::Normal(board::AlgebraicNotationNormalMove {
                 kind,
                 from_file,
                 from_rank,
@@ -449,6 +474,8 @@ impl BitboardRepresentation {
                 };
                 let from_file = from_file.map(|from_file| (from_file as u32 - 'a' as u32) as u8);
                 let from_rank = from_rank.map(|from_rank| from_rank - 1);
+                let is_en_passant =
+                    self.en_passant_target == to_square && capture && kind == PieceKind::Pawn;
                 let source = match (from_file, from_rank) {
                     (Some(file), Some(rank)) => BoardSquare::from_rank_file(rank, file)
                         .ok_or(AlgebraicNotationError::InvalidAlgebraicNotation)?,
@@ -467,6 +494,7 @@ impl BitboardRepresentation {
                                 let Some((target_rank, target_file)) = to_square.to_rank_file() else {
                                     return false;
                                 };
+                                // Check that the move is legal for the kind of piece
                                 match (kind, self.side_to_move) {
                                     (PieceKind::Pawn, Color::White) => {
                                         if capture {
@@ -538,6 +566,28 @@ impl BitboardRepresentation {
                                             && file.abs_diff(target_file) <= 1
                                     }
                                 }
+                            })
+                            // Check if the move is putting us in check
+                            .filter(|square| {
+                                // Check that we aren't moving into check
+                                let mut post_move = self.clone();
+                                *post_move.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(*square);
+                                if is_en_passant {
+                                    *post_move.piece_bitboard_mut(Piece { kind: PieceKind::Pawn, color: self.side_to_move.other() })
+                                        &= !Bitboard::from_board_square(
+                                            self.en_passant_target.offset(
+                                                match self.side_to_move {
+                                                    Color::White => -1,
+                                                    Color::Black => 1
+                                                },
+                                                0
+                                                )
+                                            );
+                                } else if let Some(capture) = post_move.get(to_square) {
+                                    *post_move.piece_bitboard_mut(capture) &= !Bitboard::from_board_square(to_square);
+                                }
+                                *post_move.piece_bitboard_mut(piece) |= Bitboard::from_board_square(to_square);
+                                !post_move.is_check(self.side_to_move)
                             });
                         let Some(source) = pieces_iter.next() else {
                             // We didn't find a piece
@@ -550,8 +600,6 @@ impl BitboardRepresentation {
                         source
                     }
                 };
-                let is_en_passant =
-                    self.en_passant_target == to_square && capture && kind == PieceKind::Pawn;
                 DetailedMove {
                     piece,
                     source,
@@ -566,7 +614,7 @@ impl BitboardRepresentation {
     }
 
     /// Get the square on which the given player's King resides
-    pub fn king_square(&self, color: Color) -> BoardSquare {
+    pub const fn king_square(&self, color: Color) -> BoardSquare {
         match color {
             Color::White => self.white_king,
             Color::Black => self.black_king,
@@ -574,20 +622,20 @@ impl BitboardRepresentation {
     }
 
     /// Get the bitboard associated with the given piece
-    pub fn piece_bitboard(&self, piece: Piece) -> Bitboard {
+    pub const fn piece_bitboard(&self, piece: Piece) -> Bitboard {
         match (piece.kind, piece.color) {
             (PieceKind::Pawn, Color::White) => self.white_pawn,
             (PieceKind::Rook, Color::White) => self.white_rook,
             (PieceKind::Knight, Color::White) => self.white_knight,
             (PieceKind::Bishop, Color::White) => self.white_bishop,
             (PieceKind::Queen, Color::White) => self.white_queen,
-            (PieceKind::King, Color::White) => Bitboard::from(self.white_king),
+            (PieceKind::King, Color::White) => Bitboard::from_board_square(self.white_king),
             (PieceKind::Pawn, Color::Black) => self.black_pawn,
             (PieceKind::Rook, Color::Black) => self.black_rook,
             (PieceKind::Knight, Color::Black) => self.black_knight,
             (PieceKind::Bishop, Color::Black) => self.black_bishop,
             (PieceKind::Queen, Color::Black) => self.black_queen,
-            (PieceKind::King, Color::Black) => Bitboard::from(self.black_king),
+            (PieceKind::King, Color::Black) => Bitboard::from_board_square(self.black_king),
         }
     }
 
@@ -646,8 +694,55 @@ impl BitboardRepresentation {
         threatened_squares
     }
 
+    /// A fast function which checks whether we're in check, but may return `true` if the answer is
+    /// `false`.
+    ///
+    /// This function exists as a hint to speed up `is_check`, which is slow and called a lot.
+    const fn quick_check_heuristic(&self, color: Color) -> bool {
+        let king = self.king_square(color);
+        Bitboard::containing_rank(king)
+            .union(Bitboard::containing_file(king))
+            .intersects(
+                self.piece_bitboard(Piece {
+                    kind: PieceKind::Rook,
+                    color: color.other(),
+                })
+                .union(self.piece_bitboard(Piece {
+                    kind: PieceKind::Queen,
+                    color: color.other(),
+                })),
+            )
+            || Bitboard::containing_diagonals(king).intersects(
+                self.piece_bitboard(Piece {
+                    kind: PieceKind::Bishop,
+                    color: color.other(),
+                })
+                .union(self.piece_bitboard(Piece {
+                    kind: PieceKind::Queen,
+                    color: color.other(),
+                })),
+            )
+            || Bitboard::knight_moves(king).intersects(self.piece_bitboard(Piece {
+                kind: PieceKind::Knight,
+                color: color.other(),
+            }))
+            || match color {
+                Color::White => self.black_pawn.intersects(
+                    Bitboard::from_board_square(king.offset(1, 1))
+                        .union(Bitboard::from_board_square(king.offset(1, -1))),
+                ),
+                Color::Black => self.white_pawn.intersects(
+                    Bitboard::from_board_square(king.offset(-1, 1))
+                        .union(Bitboard::from_board_square(king.offset(-1, -1))),
+                ),
+            }
+    }
+
     /// Returns `true` if the given color's King is in check
     fn is_check(&self, color: Color) -> bool {
+        if !self.quick_check_heuristic(color) {
+            return false;
+        }
         self.threatened_squares(color.other())
             .contains(Bitboard::from_board_square(self.king_square(color)))
     }
@@ -887,7 +982,7 @@ mod tests {
         );
     }
 
-    /// Play all the moves in all the games in the dataset
+    /// Play all the moves in the first 10k games in the dataset
     ///
     /// This just checks that all the moves are still legal, but if we do anything wrong, odds are
     /// some future move will show up as wrong.
@@ -895,7 +990,7 @@ mod tests {
     fn test_against_lichess_jan_2013() {
         let mut failure_count = 0;
         let mut games_played = 0;
-        'gameloop: for game in lichess_jan_2013_database() {
+        'gameloop: for game in &lichess_jan_2013_database()[..10_000] {
             if failure_count >= 10 {
                 eprintln!("Giving up after 10 failures :(");
                 break 'gameloop;

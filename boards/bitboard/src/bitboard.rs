@@ -4,11 +4,22 @@ use core::{
 };
 
 use board::{BoardSquare, BoardSquareOffset, Color, Piece, PieceKind};
+use utils::debug_unreachable;
 
 /// A bitboard (which is equivalent to a `u64`)
 #[repr(transparent)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct Bitboard(pub u64);
+
+macro_rules! bitboard_from_offsets {
+    ($($offset:expr),* $(,)?) => {
+        Bitboard(0 $(| 1 << {
+            let offset = $offset;
+            offset & 0x07 | (((offset >> 4) & 0x07) << 3)
+        })*)
+    };
+}
+
 impl Bitboard {
     /// Create an empty bitboard
     pub const fn empty() -> Self {
@@ -24,6 +35,79 @@ impl Bitboard {
         } else {
             Self::empty()
         }
+    }
+
+    /// Gets a bitboard for the rank containing the given square
+    pub const fn containing_rank(square: BoardSquare) -> Self {
+        if square.is_valid() {
+            let base = 1u64 << (((square.0 & 0x70) >> 1) as u64);
+            Self(base * 0xFF)
+        } else {
+            Self::empty()
+        }
+    }
+
+    pub const fn containing_diagonals(square: BoardSquare) -> Self {
+        let Some((rank, file)) = square.to_rank_file() else { return Self::empty(); };
+        let forward_diag = match (rank as i8) - (file as i8) {
+            -7 => bitboard_from_offsets!(0x07),
+            -6 => bitboard_from_offsets!(0x06, 0x17),
+            -5 => bitboard_from_offsets!(0x05, 0x16, 0x27),
+            -4 => bitboard_from_offsets!(0x04, 0x15, 0x26, 0x37),
+            -3 => bitboard_from_offsets!(0x03, 0x14, 0x25, 0x36, 0x47),
+            -2 => bitboard_from_offsets!(0x02, 0x13, 0x24, 0x35, 0x46, 0x57),
+            -1 => bitboard_from_offsets!(0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67),
+            0 => bitboard_from_offsets!(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77),
+            1 => bitboard_from_offsets!(0x10, 0x21, 0x32, 0x43, 0x54, 0x65, 0x76),
+            2 => bitboard_from_offsets!(0x20, 0x31, 0x42, 0x53, 0x64, 0x75),
+            3 => bitboard_from_offsets!(0x30, 0x41, 0x52, 0x63, 0x74),
+            4 => bitboard_from_offsets!(0x40, 0x51, 0x62, 0x73),
+            5 => bitboard_from_offsets!(0x50, 0x61, 0x72),
+            6 => bitboard_from_offsets!(0x60, 0x71),
+            7 => bitboard_from_offsets!(0x70),
+            _ => debug_unreachable!(),
+        };
+        let backward_diag = match rank + file {
+            0 => bitboard_from_offsets!(0x00),
+            1 => bitboard_from_offsets!(0x10, 0x01),
+            2 => bitboard_from_offsets!(0x20, 0x11, 0x02),
+            3 => bitboard_from_offsets!(0x30, 0x21, 0x12, 0x03),
+            4 => bitboard_from_offsets!(0x40, 0x31, 0x22, 0x13, 0x04),
+            5 => bitboard_from_offsets!(0x50, 0x41, 0x32, 0x23, 0x14, 0x05),
+            6 => bitboard_from_offsets!(0x60, 0x51, 0x42, 0x33, 0x24, 0x15, 0x06),
+            7 => bitboard_from_offsets!(0x70, 0x61, 0x52, 0x43, 0x34, 0x25, 0x16, 0x07),
+            8 => bitboard_from_offsets!(0x71, 0x62, 0x53, 0x44, 0x35, 0x26, 0x17),
+            9 => bitboard_from_offsets!(0x72, 0x63, 0x54, 0x45, 0x36, 0x27),
+            10 => bitboard_from_offsets!(0x73, 0x64, 0x55, 0x46, 0x37),
+            11 => bitboard_from_offsets!(0x74, 0x65, 0x56, 0x47),
+            12 => bitboard_from_offsets!(0x75, 0x66, 0x57),
+            13 => bitboard_from_offsets!(0x76, 0x67),
+            14 => bitboard_from_offsets!(0x77),
+            _ => debug_unreachable!(),
+        };
+        Bitboard::union(forward_diag, backward_diag)
+    }
+
+    /// Gets a bitboard for the rank containing the given square
+    pub const fn containing_file(square: BoardSquare) -> Self {
+        if square.is_valid() {
+            let base = 1u64 << ((square.0 & 0x07) as u64);
+            Self(base * 0x01010101_01010101)
+        } else {
+            Self::empty()
+        }
+    }
+
+    /// Get all the squares that are a knight move away
+    pub const fn knight_moves(square: BoardSquare) -> Self {
+        Self::from_board_square(square.offset(2, 1))
+            .union(Self::from_board_square(square.offset(2, -1)))
+            .union(Self::from_board_square(square.offset(-2, 1)))
+            .union(Self::from_board_square(square.offset(-2, -1)))
+            .union(Self::from_board_square(square.offset(1, 2)))
+            .union(Self::from_board_square(square.offset(1, -2)))
+            .union(Self::from_board_square(square.offset(-1, 2)))
+            .union(Self::from_board_square(square.offset(-1, -2)))
     }
 
     /// Gets the bitboard representing the "middle" of a rook move.
@@ -394,6 +478,31 @@ mod tests {
 
         fn test_num_set_and_position_iter_agree(bitboard: Bitboard) -> bool {
             bitboard.num_set() as usize == bitboard.squares_iter().count()
+        }
+    }
+
+    #[test]
+    fn check_squares_contained_in_ranks_files() {
+        for square in BoardSquare::all_squares() {
+            assert!(
+                Bitboard::containing_rank(square).contains(Bitboard::from_board_square(square)),
+                "{square} not contained in its row",
+            );
+            assert!(
+                Bitboard::containing_file(square).contains(Bitboard::from_board_square(square)),
+                "{square} not contained in its file",
+            );
+        }
+    }
+
+    #[test]
+    fn check_squares_contained_in_diagonals() {
+        for square in BoardSquare::all_squares() {
+            assert!(
+                Bitboard::containing_diagonals(square)
+                    .contains(Bitboard::from_board_square(square)),
+                "{square} not contained in its diagonal",
+            );
         }
     }
 }
