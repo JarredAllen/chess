@@ -56,6 +56,8 @@ pub enum Error {
     NonCaptureTargetTaken,
     #[error("attempted to capture, but no piece there to be captured")]
     CaptureTargetMissing,
+    #[error("attempted move puts moving side's king in check")]
+    MovingIntoCheck,
     #[error("some other error")]
     Other,
 }
@@ -266,6 +268,36 @@ impl BitboardRepresentation {
             .intersects(Bitboard::from(m.target))
         {
             return Err(Error::NonCaptureTargetTaken);
+        }
+        let mut post_move = self.clone();
+        if m.piece.kind == PieceKind::King {
+            if let Some(capture) = post_move.get(m.target) {
+                *post_move.piece_bitboard_mut(capture) &= !Bitboard::from_board_square(m.target);
+            }
+            match m.piece.color {
+                Color::White => post_move.white_king = m.target,
+                Color::Black => post_move.black_king = m.target,
+            }
+        } else {
+            *post_move.piece_bitboard_mut(m.piece) &= !Bitboard::from_board_square(m.source);
+            if m.is_en_passant {
+                *post_move.piece_bitboard_mut(Piece {
+                    kind: PieceKind::Pawn,
+                    color: self.side_to_move.other(),
+                }) &= !Bitboard::from_board_square(self.en_passant_target.offset(
+                    match self.side_to_move {
+                        Color::White => -1,
+                        Color::Black => 1,
+                    },
+                    0,
+                ));
+            } else if let Some(capture) = post_move.get(m.target) {
+                *post_move.piece_bitboard_mut(capture) &= !Bitboard::from_board_square(m.target);
+            }
+            *post_move.piece_bitboard_mut(m.piece) |= Bitboard::from_board_square(m.target);
+        }
+        if post_move.is_check(self.side_to_move) {
+            return Err(Error::MovingIntoCheck);
         }
         Ok(())
     }
