@@ -173,6 +173,7 @@ pub trait Board: Sized {
     /// Returns `Some(())` if the move is legal, and `None` if it isn't.
     fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<(), Self::Err>;
 
+    /// Make the board after the given sequence of moves
     fn from_move_sequence(
         moves: impl Iterator<Item = AlgebraicNotationMove>,
     ) -> Result<Self, Self::Err> {
@@ -190,9 +191,12 @@ pub trait Board: Sized {
 #[derive(Debug)]
 pub struct AlgebraicNotationMoveParseError;
 
+/// The data parsed out from a move in algebraic notation
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct AlgebraicNotationMove {
+    /// What move happened on the board
     pub move_type: AlgebraicNotationMoveType,
+    /// Whether the move leaves the opponent in check(mate)
     pub check: CheckStatus,
 }
 impl fmt::Display for AlgebraicNotationMove {
@@ -217,6 +221,7 @@ impl FromStr for AlgebraicNotationMove {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum AlgebraicNotationMoveType {
+    /// A move which isn't a castle (because those are notated entirely unrelatedly)
     Normal(AlgebraicNotationNormalMove),
     CastleKingside,
     CastleQueenside,
@@ -247,6 +252,7 @@ pub enum CheckStatus {
     Check,
     Checkmate,
 }
+/// Returns the status as appended to a move in algebraic notation
 impl fmt::Display for CheckStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
@@ -257,6 +263,10 @@ impl fmt::Display for CheckStatus {
     }
 }
 
+/// All the data from a move that isn't a castle
+///
+/// This doesn't include the check status after the move, because that is shared with castling in
+/// the [`AlgebraicNotationMove`] struct.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub struct AlgebraicNotationNormalMove {
     pub kind: PieceKind,
@@ -374,11 +384,14 @@ impl FromStr for AlgebraicNotationNormalMove {
 ///
 /// Stored in 0x88 method:
 /// ```text
-/// 0x12345678
+/// 0b12345678
 ///        +-+ Rank
 ///    +-+ File
 ///   +   + Must be zero, invalid position if 1
 /// ```
+///
+/// Each square is represented in one byte, and this format makes it easy to do operations and
+/// check if the resulting square is valid and on the board.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BoardSquare(pub u8);
@@ -543,12 +556,13 @@ impl BoardSquare {
         }
     }
 
-    /// Produce a board square from the rank and file, returning `None` if out of bounds
-    pub const fn from_rank_file(rank: u8, file: u8) -> Option<Self> {
+    /// Produce a board square from the rank and file, returning [`Self::INVALID`]` if the rank and
+    /// file are not a valid square.
+    pub const fn from_rank_file(rank: u8, file: u8) -> Self {
         if rank < 8 && file < 8 {
-            Some(Self(rank << 4 | file))
+            Self(rank << 4 | file)
         } else {
-            None
+            Self::INVALID
         }
     }
 
@@ -648,6 +662,9 @@ impl FromStr for BoardSquare {
 }
 
 /// An offset on a board
+///
+/// This struct stores any possible offset in both rank and file between any two squares, using
+/// only one byte of space.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BoardSquareOffset(u8);
@@ -686,8 +703,9 @@ impl BoardSquareOffset {
 
     /// Produce a new offset from the given rank and file amounts
     ///
-    /// In debug mode, we assert that the rank and file are both on the interval [-7,7]. In release
-    /// mode, we wrap modulo 16 and allow for -8, which invalidates any square.
+    /// In debug mode, we assert that the rank and file are both on the interval [-7,7] (which are
+    /// the only possible offsets). In release mode, we wrap modulo 16 and allow for -8, which
+    /// invalidates any square.
     pub const fn from_rank_file(rank: i8, file: i8) -> Self {
         debug_assert!(-8 < rank && rank < 8);
         debug_assert!(-8 < file && file < 8);
@@ -696,7 +714,7 @@ impl BoardSquareOffset {
 
     /// Offset the given board square
     ///
-    /// If the square is already invalid, the square stays invalid
+    /// If the square is already invalid, then the same square is returned unchanged.
     pub const fn offset(self, square: BoardSquare) -> BoardSquare {
         if square.is_valid() {
             BoardSquare(((self.0 & 0x77) + square.0) ^ (self.0 & 0x88))

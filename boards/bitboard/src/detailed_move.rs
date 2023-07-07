@@ -257,7 +257,6 @@ impl DetailedMove {
         let Some((target_rank, _)) = self.target.to_rank_file() else { return BoardSquare::INVALID; };
         if source_rank.abs_diff(target_rank) == 2 {
             BoardSquare::from_rank_file((source_rank + target_rank) / 2, file)
-                .expect("Constructed invalid board square position")
         } else {
             BoardSquare::INVALID
         }

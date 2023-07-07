@@ -20,9 +20,11 @@ bitflags::bitflags! {
     pub struct CastleOptions: u8 {
         const WhiteKingside = 0b0000_0001;
         const WhiteQueenside = 0b0000_0010;
+        /// A mask for whether white can castle in either direction
         const White = 0b0000_0011;
         const BlackKingside = 0b0000_0100;
         const BlackQueenside = 0b0000_1000;
+        /// A mask for whether black can castle in either direction
         const Black = 0b0000_1100;
     }
 }
@@ -85,6 +87,10 @@ pub struct BitboardRepresentation {
     /// If no en passant is allowed, then this will be an invalid square
     pub en_passant_target: BoardSquare,
     pub side_to_move: Color,
+    /// What castles are allowed, given the history of moves
+    ///
+    /// These castles aren't necessarily legal right now, as it may be blocked by intervening
+    /// pieces and/or checks.
     pub castles: CastleOptions,
 
     // clocks
@@ -118,7 +124,7 @@ impl BitboardRepresentation {
         turn_counter: 0,
     };
 
-    /// The initial board state
+    /// The state at the start of a chess game
     pub const INITIAL_STATE: Self = Self {
         white_pawn: Bitboard(0xFF00),
         white_rook: Bitboard(0x81),
@@ -204,9 +210,12 @@ impl BitboardRepresentation {
         None
     }
 
+    /// Check if this move is legal to do right now.
+    ///
+    /// Returns `Ok(())` if the move is legal, otherwise `Err(..)` containing the reason why the
+    /// move is illegal.
     fn check_move_legality(&self, m: DetailedMove) -> Result<()> {
         let Some((own, other)) = m.legality_check() else {
-            eprintln!("Never legal move:\n{m:#?}");
             return Err(Error::MoveNeverLegal);
         };
         if !self
@@ -314,21 +323,22 @@ impl BitboardRepresentation {
                         debug_unreachable!("capture and castle together");
                     }
                     if let Some(piece) = self.get(m.target) {
-                        *self.piece_bitboard_mut(piece) &= !Bitboard::from(m.target);
+                        *self.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(m.target);
                     } else {
                         debug_unreachable!("Capture move without target piece");
                     }
                 } else if m.is_castle {
                     if m.target == BoardSquare::C1 {
-                        self.white_rook &= !Bitboard::from(BoardSquare::A1);
+                        self.white_rook &= !Bitboard::from_board_square(BoardSquare::A1);
                         self.white_rook |= BoardSquare::D1;
                     } else if m.target == BoardSquare::G1 {
-                        self.white_rook &= !Bitboard::from(BoardSquare::H1);
+                        self.white_rook &= !Bitboard::from_board_square(BoardSquare::H1);
                         self.white_rook |= BoardSquare::F1;
                     } else {
                         debug_unreachable!("Castle with illegal target");
                     }
                 }
+                debug_assert!(!m.is_en_passant, "Can't en passant with a king");
                 self.white_king = m.target;
                 self.castles &= !CastleOptions::White;
             }
@@ -338,36 +348,36 @@ impl BitboardRepresentation {
                         debug_unreachable!("capture and castle together");
                     }
                     if let Some(piece) = self.get(m.target) {
-                        *self.piece_bitboard_mut(piece) &= !Bitboard::from(m.target);
+                        *self.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(m.target);
                     } else {
                         debug_unreachable!("Capture move without target piece");
                     }
                 } else if m.is_castle {
                     if m.target == BoardSquare::C8 {
-                        self.black_rook &= !Bitboard::from(BoardSquare::A8);
+                        self.black_rook &= !Bitboard::from_board_square(BoardSquare::A8);
                         self.black_rook |= BoardSquare::D8;
                     } else if m.target == BoardSquare::G8 {
-                        self.black_rook &= !Bitboard::from(BoardSquare::H8);
+                        self.black_rook &= !Bitboard::from_board_square(BoardSquare::H8);
                         self.black_rook |= BoardSquare::F8;
                     } else {
                         debug_unreachable!("Castle with illegal target");
                     }
                 }
+                debug_assert!(!m.is_en_passant, "Can't en passant with a king");
                 self.black_king = m.target;
                 self.castles &= !CastleOptions::Black;
             }
             _ => {
-                *self.piece_bitboard_mut(m.piece) &= Bitboard::from(m.source).negation();
+                *self.piece_bitboard_mut(m.piece) &=
+                    Bitboard::from_board_square(m.source).negation();
                 if m.is_en_passant {
                     let (target_rank, target_file) = m
                         .target
                         .to_rank_file()
                         .expect_unreachable("Move target was invalid square");
-                    let clear_bitboard = Bitboard::from(match m.piece.color {
-                        Color::White => BoardSquare::from_rank_file(target_rank - 1, target_file)
-                            .expect_unreachable("Constructed invalid `BoardSquare`"),
-                        Color::Black => BoardSquare::from_rank_file(target_rank + 1, target_file)
-                            .expect_unreachable("Constructed invalid `BoardSquare`"),
+                    let clear_bitboard = Bitboard::from_board_square(match m.piece.color {
+                        Color::White => BoardSquare::from_rank_file(target_rank - 1, target_file),
+                        Color::Black => BoardSquare::from_rank_file(target_rank + 1, target_file),
                     });
                     *self.piece_bitboard_mut(Piece {
                         kind: PieceKind::Pawn,
@@ -385,7 +395,8 @@ impl BitboardRepresentation {
                     }
                     if m.is_capture {
                         if let Some(piece) = self.get(m.target) {
-                            *self.piece_bitboard_mut(piece) &= !Bitboard::from(m.target);
+                            *self.piece_bitboard_mut(piece) &=
+                                !Bitboard::from_board_square(m.target);
                         } else {
                             debug_unreachable!("Capture move without target piece");
                         }
@@ -418,6 +429,9 @@ impl BitboardRepresentation {
         self.en_passant_target = m.en_passant_response();
     }
 
+    /// If the given move is legal, then do it.
+    ///
+    /// Otherwise, this method returns `Err(..)` with why the move is illegal.
     fn do_move_if_legal(&mut self, m: DetailedMove) -> Result<()> {
         self.check_move_legality(m)?;
         // SAFETY:
@@ -426,6 +440,10 @@ impl BitboardRepresentation {
         Ok(())
     }
 
+    /// Convert the given algebraic notation into the format we use
+    ///
+    /// This uses the current board state to disambiguate a lot of things which are left ambiguous
+    /// in default algebraic notation.
     fn detail_algebraic_move(
         &self,
         m: AlgebraicNotationMove,
@@ -509,8 +527,7 @@ impl BitboardRepresentation {
                 let is_en_passant =
                     self.en_passant_target == to_square && capture && kind == PieceKind::Pawn;
                 let source = match (from_file, from_rank) {
-                    (Some(file), Some(rank)) => BoardSquare::from_rank_file(rank, file)
-                        .ok_or(AlgebraicNotationError::InvalidAlgebraicNotation)?,
+                    (Some(file), Some(rank)) => BoardSquare::from_rank_file(rank, file),
                     _ => {
                         let mut pieces_iter =
                             self.piece_bitboard(piece).squares_iter().filter(|square| {
@@ -543,7 +560,7 @@ impl BitboardRepresentation {
                                             } else if target_rank == 3 && rank == 1 {
                                                 // Double pawn move only if the middle square is
                                                 // clear
-                                                self.get(BoardSquare::from_rank_file(2, file).unwrap()).is_none()
+                                                self.get(BoardSquare::from_rank_file(2, file)).is_none()
                                             } else {
                                                 false
                                             }
@@ -564,7 +581,7 @@ impl BitboardRepresentation {
                                             } else if target_rank == 4 && rank == 6 {
                                                 // Double pawn move only if the middle square is
                                                 // clear
-                                                self.get(BoardSquare::from_rank_file(5, file).unwrap()).is_none()
+                                                self.get(BoardSquare::from_rank_file(5, file)).is_none()
                                             } else {
                                                 false
                                             }
@@ -816,9 +833,9 @@ impl Board for BitboardRepresentation {
                         return "8".to_string();
                     }
                     let mut positions = String::with_capacity(8);
-                    let mut file_idx = 0;
                     let mut last_piece_file_idx = -1;
-                    while let Some(position) = BoardSquare::from_rank_file(row_idx, file_idx) {
+                    for file_idx in 0..8 {
+                        let position = BoardSquare::from_rank_file(row_idx, file_idx);
                         if let Some(piece) = self.get(position) {
                             let squares_skipped = file_idx as i16 - last_piece_file_idx;
                             if squares_skipped > 1 {
@@ -828,9 +845,6 @@ impl Board for BitboardRepresentation {
                             }
                             positions.push(piece.fen_letter());
                             last_piece_file_idx = file_idx as i16;
-                            file_idx += 1;
-                        } else {
-                            file_idx += 1;
                         }
                     }
                     if last_piece_file_idx != 7 {
@@ -890,15 +904,13 @@ impl Board for BitboardRepresentation {
                     *match c {
                         'K' => {
                             board.white_king =
-                                BoardSquare::from_rank_file(rank_idx as u8, file as u8)
-                                    .expect("Error parsing FEN");
+                                BoardSquare::from_rank_file(rank_idx as u8, file as u8);
                             file += 1;
                             continue;
                         }
                         'k' => {
                             board.black_king =
-                                BoardSquare::from_rank_file(rank_idx as u8, file as u8)
-                                    .expect("Error parsing FEN");
+                                BoardSquare::from_rank_file(rank_idx as u8, file as u8);
                             file += 1;
                             continue;
                         }

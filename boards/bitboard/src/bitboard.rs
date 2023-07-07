@@ -122,12 +122,9 @@ impl Bitboard {
             let mut file = start_file as i8 + file_dir;
             let rank = start_rank;
             while file as u8 != end_file {
-                board = board.union(Bitboard::from_board_square(
-                    match BoardSquare::from_rank_file(rank, file as u8) {
-                        Some(square) => square,
-                        None => BoardSquare::INVALID,
-                    },
-                ));
+                board = board.union(Bitboard::from_board_square(BoardSquare::from_rank_file(
+                    rank, file as u8,
+                )));
                 file += file_dir;
             }
             board
@@ -137,12 +134,9 @@ impl Bitboard {
             let mut rank = start_rank as i8 + rank_dir;
             let file = start_file;
             while rank as u8 != end_rank {
-                board = board.union(Bitboard::from_board_square(
-                    match BoardSquare::from_rank_file(rank as u8, file) {
-                        Some(square) => square,
-                        None => BoardSquare::INVALID,
-                    },
-                ));
+                board = board.union(Bitboard::from_board_square(BoardSquare::from_rank_file(
+                    rank as u8, file,
+                )));
                 rank += rank_dir;
             }
             board
@@ -168,12 +162,9 @@ impl Bitboard {
         let mut file = start_file as i8 + file_dir;
         let mut board = Bitboard::empty();
         while rank as u8 != end_rank && file as u8 != end_file {
-            board = board.union(Bitboard::from_board_square(
-                match BoardSquare::from_rank_file(rank as u8, file as u8) {
-                    Some(square) => square,
-                    None => BoardSquare::INVALID,
-                },
-            ));
+            board = board.union(Bitboard::from_board_square(BoardSquare::from_rank_file(
+                rank as u8, file as u8,
+            )));
             rank += rank_dir;
             file += file_dir;
         }
@@ -336,10 +327,7 @@ impl Bitboard {
     pub fn squares_iter(self) -> impl Iterator<Item = BoardSquare> {
         (0..=63)
             .filter(move |&offset| self.0 & (1 << offset) != 0)
-            .map(|offset| {
-                BoardSquare::from_rank_file((offset >> 3) & 0x07, offset & 0x07)
-                    .expect("Failed to make board square out of bitboards")
-            })
+            .map(|offset| BoardSquare::from_rank_file((offset >> 3) & 0x07, offset & 0x07))
     }
 
     /// Returns the number of bits which are set
