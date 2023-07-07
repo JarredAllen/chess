@@ -4,7 +4,7 @@ use board::{
     AlgebraicNotationMove, AlgebraicNotationMoveType, Board, BoardSquare, CheckStatus, Color,
     Piece, PieceKind,
 };
-use utils::{debug_unreachable, UnreachableExpect};
+use utils::{debug_impossible, debug_unreachable, UnreachableExpect};
 
 mod bitboard;
 mod detailed_move;
@@ -338,7 +338,8 @@ impl BitboardRepresentation {
                         debug_unreachable!("Castle with illegal target");
                     }
                 }
-                debug_assert!(!m.is_en_passant, "Can't en passant with a king");
+                debug_impossible!(m.is_en_passant, "Can't en passant with a king");
+                debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.white_king = m.target;
                 self.castles &= !CastleOptions::White;
             }
@@ -363,7 +364,8 @@ impl BitboardRepresentation {
                         debug_unreachable!("Castle with illegal target");
                     }
                 }
-                debug_assert!(!m.is_en_passant, "Can't en passant with a king");
+                debug_impossible!(m.is_en_passant, "Can't en passant with a king");
+                debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.black_king = m.target;
                 self.castles &= !CastleOptions::Black;
             }
@@ -401,6 +403,15 @@ impl BitboardRepresentation {
                             debug_unreachable!("Capture move without target piece");
                         }
                     }
+                }
+                if m.piece.kind != PieceKind::Pawn {
+                    debug_impossible!(m.promotion_into.is_some(), "Can't promote a non-pawn");
+                }
+                if let Some(promote) = m.promotion_into {
+                    debug_impossible!(
+                        !promote.is_promotable(),
+                        "Can't promote into a pawn or king"
+                    );
                 }
                 *self.piece_bitboard_mut(Piece {
                     kind: m.promotion_into.unwrap_or(m.piece.kind),

@@ -1,4 +1,7 @@
-/// Expands to [`unreachable`] if in debug mode, otherwise [`core::hint::unreachable_unchecked`].
+/// Assert that this code is unreachable.
+///
+/// With debug assertions, expands to [`unreachable`], otherwise
+/// [`core::hint::unreachable_unchecked`].
 #[macro_export]
 macro_rules! debug_unreachable {
     ($($tt:tt)*) =>{
@@ -6,6 +9,23 @@ macro_rules! debug_unreachable {
             ::core::unreachable!($($tt)*)
         } else {
             unsafe { ::core::hint::unreachable_unchecked() }
+        }
+    };
+}
+
+/// Assert that the given condition is false.
+///
+/// With debug assertions, this expands to a panic, otherwise
+/// [`core::hint::unreachable_unchecked`].
+#[macro_export]
+macro_rules! debug_impossible {
+    ($cond:expr $(, $( $tt:tt )* )? ) => {
+        if $cond {
+        if ::core::cfg!(debug_assertions) {
+            ::core::panic!($( $( $tt )* )?)
+        } else {
+            unsafe { ::core::hint::unreachable_unchecked() }
+        }
         }
     };
 }

@@ -249,6 +249,9 @@ impl DetailedMove {
         }
     }
 
+    /// Returns the square against which the opponent may respond with an en passant.
+    ///
+    /// If this move is not a double pawn move, then this is [`BoardSquare::INVALID`].
     pub(crate) fn en_passant_response(&self) -> BoardSquare {
         if self.piece.kind != PieceKind::Pawn || self.is_capture {
             return BoardSquare::INVALID;
