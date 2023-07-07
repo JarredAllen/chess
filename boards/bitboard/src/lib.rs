@@ -60,6 +60,8 @@ pub enum Error {
     CaptureTargetMissing,
     #[error("attempted move puts moving side's king in check")]
     MovingIntoCheck,
+    #[error("attempted castle with King in check")]
+    CastleOutOfCheck,
     #[error("some other error")]
     Other,
 }
@@ -223,6 +225,9 @@ impl BitboardRepresentation {
             .intersects(Bitboard::from(m.source))
         {
             return Err(Error::SourcePieceNotAtStart);
+        }
+        if m.is_castle && self.is_check(m.piece.color) {
+            return Err(Error::CastleOutOfCheck);
         }
         match m.piece.color {
             Color::White => {
@@ -796,6 +801,11 @@ impl BitboardRepresentation {
                         .union(Bitboard::from_board_square(king.offset(-1, -1))),
                 ),
             }
+            || self
+                .white_king
+                .offset_to(self.black_king)
+                .chebyshev_distance()
+                == 1
     }
 
     /// Returns `true` if the given color's King is in check
@@ -808,26 +818,57 @@ impl BitboardRepresentation {
     }
 
     /// Returns `true` if the given color's King is in checkmate
-    fn is_checkmate(&self, color: Color) -> bool {
-        // TODO We miss if the offending piece can be captured or if the check can be blocked
-        if !self.is_check(color) {
-            return false;
-        }
-        let king_moves = match color {
-            Color::White => Bitboard::from_board_square(self.white_king),
-            Color::Black => Bitboard::from_board_square(self.black_king),
-        }
-        .squares_threatened(
-            Piece {
-                kind: PieceKind::King,
-                color,
-            },
-            self.bitboard_occupied(),
-        ) & !match color {
+    fn is_checkmate(&self) -> bool {
+        self.is_check(self.side_to_move) && self.legal_moves().count() == 0
+    }
+
+    /// Returns the list of legal moves for the given player
+    pub fn legal_moves(&self) -> impl Iterator<Item = DetailedMove> + '_ {
+        let color = self.side_to_move;
+        let own_pieces = match color {
             Color::White => self.white_bitboard(),
             Color::Black => self.black_bitboard(),
         };
-        self.threatened_squares(color.other()).contains(king_moves)
+        let enemy_pieces = match color {
+            Color::White => self.black_bitboard(),
+            Color::Black => self.white_bitboard(),
+        };
+        own_pieces
+            .squares_iter()
+            .flat_map(move |source| {
+                let piece = self.get(source).expect_unreachable("Empty source piece");
+                BoardSquare::all_squares().map(move |target| {
+                    let is_en_passant = target == self.en_passant_target;
+                    DetailedMove {
+                        piece,
+                        source,
+                        target,
+                        is_castle: piece.kind == PieceKind::King
+                            && source.offset_to(target).chebyshev_distance() == 2,
+                        is_en_passant,
+                        is_capture: is_en_passant
+                            || enemy_pieces.contains(Bitboard::from_board_square(target)),
+                        promotion_into: None,
+                    }
+                })
+            })
+            .flat_map(move |mv| {
+                // Add all the options for promoting a pawn
+                [
+                    None,
+                    Some(PieceKind::Rook),
+                    Some(PieceKind::Knight),
+                    Some(PieceKind::Knight),
+                    Some(PieceKind::Queen),
+                ]
+                .into_iter()
+                .map(move |promotion| {
+                    let mut promoting = mv;
+                    promoting.promotion_into = promotion;
+                    promoting
+                })
+            })
+            .filter(|&mv| self.check_move_legality(mv).is_ok())
     }
 }
 
@@ -996,10 +1037,7 @@ impl Board for BitboardRepresentation {
     }
 
     fn check_status(&self) -> CheckStatus {
-        match (
-            self.is_check(self.side_to_move),
-            self.is_checkmate(self.side_to_move),
-        ) {
+        match (self.is_check(self.side_to_move), self.is_checkmate()) {
             (false, _) => CheckStatus::None,
             (true, false) => CheckStatus::Check,
             (true, true) => CheckStatus::Checkmate,
@@ -1081,9 +1119,7 @@ mod tests {
                     }
                 };
                 let computed_check = board.check_status();
-                // TODO Check for normal equality once checkmate works
-                if (mv.notated.check == CheckStatus::None) != (computed_check == CheckStatus::None)
-                {
+                if mv.notated.check != computed_check {
                     failure_count += 1;
                     eprintln!(
                         "Mismatched check status in game {}:\n\tWas {:?}\n\tComputed {:?}\n on board: {}\n",
@@ -1100,6 +1136,13 @@ mod tests {
                         "Black's threatened squares:\n{}",
                         board.threatened_squares(Color::Black)
                     );
+                    if mv.notated.check == CheckStatus::Checkmate
+                        && computed_check == CheckStatus::Check
+                    {
+                        for mv in board.legal_moves() {
+                            eprintln!("Detected move:\n{mv:?}")
+                        }
+                    }
                     continue 'gameloop;
                 }
                 // TODO Add a separate test for this once I have a good pool of FENs to work with

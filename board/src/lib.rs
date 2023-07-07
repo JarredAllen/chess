@@ -605,6 +605,19 @@ impl BoardSquare {
             Self(file | (rank << 4))
         })
     }
+
+    /// Gets the offset to the given target
+    ///
+    /// If either input is invalid, then the resulting offset might make no sense.
+    pub const fn offset_to(self, other: Self) -> BoardSquareOffset {
+        let (Some((self_rank, self_file)), Some((other_rank, other_file))) = (self.to_rank_file(), other.to_rank_file()) else {
+            return BoardSquareOffset::INVALID;
+        };
+        BoardSquareOffset::from_rank_file(
+            self_rank as i8 - other_rank as i8,
+            self_file as i8 - other_file as i8,
+        )
+    }
 }
 impl fmt::Debug for BoardSquare {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -701,6 +714,9 @@ impl BoardSquareOffset {
     pub const BLACK_PAWN_ATTACKS: [BoardSquareOffset; 2] =
         [Self::from_rank_file(-1, 1), Self::from_rank_file(-1, -1)];
 
+    /// This is an invalid offset that, when applied to any [`BoardSquare`], invalidates it.
+    pub const INVALID: Self = Self(0x88);
+
     /// Produce a new offset from the given rank and file amounts
     ///
     /// In debug mode, we assert that the rank and file are both on the interval [-7,7] (which are
@@ -720,6 +736,34 @@ impl BoardSquareOffset {
             BoardSquare(((self.0 & 0x77) + square.0) ^ (self.0 & 0x88))
         } else {
             square
+        }
+    }
+
+    /// Gets the signed number of files associated with this offset
+    pub const fn file(self) -> i8 {
+        (self.0 as i8) << 4 >> 4
+    }
+
+    /// Gets the signed number of ranks associated with this offset
+    pub const fn rank(self) -> i8 {
+        (self.0 as i8) >> 4
+    }
+
+    /// Gets the taxicab distance metric for this offset
+    pub const fn taxicab_distance(self) -> u8 {
+        self.rank().unsigned_abs() + self.file().unsigned_abs()
+    }
+
+    /// Gets the Chebyshev distance for this offset
+    ///
+    /// This is the number of squares moved in one direction, for whichever direction is larger.
+    pub const fn chebyshev_distance(self) -> u8 {
+        let rank = self.rank().unsigned_abs();
+        let file = self.file().unsigned_abs();
+        if rank > file {
+            rank
+        } else {
+            file
         }
     }
 }
@@ -784,5 +828,16 @@ mod tests {
         assert_round_trip("Nb5xd4");
         assert_round_trip("O-O");
         assert_round_trip("O-O-O");
+    }
+
+    #[test]
+    fn test_offset_rank_file() {
+        for rank in -7..=7 {
+            for file in -7..=7 {
+                let offset = BoardSquareOffset::from_rank_file(rank, file);
+                assert_eq!(offset.rank(), rank);
+                assert_eq!(offset.file(), file);
+            }
+        }
     }
 }

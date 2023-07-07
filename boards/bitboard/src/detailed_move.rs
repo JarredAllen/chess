@@ -13,6 +13,59 @@ pub struct DetailedMove {
     pub(crate) promotion_into: Option<PieceKind>,
 }
 impl DetailedMove {
+    /// Black is castling to their queen side
+    pub const BLACK_QUEENSIDE_CASTLE: Self = Self {
+        piece: Piece {
+            kind: PieceKind::King,
+            color: Color::Black,
+        },
+        source: BoardSquare::E8,
+        target: BoardSquare::C8,
+        is_castle: true,
+        is_en_passant: false,
+        is_capture: false,
+        promotion_into: None,
+    };
+    /// Black is castling to their king side
+    pub const BLACK_KINGSIDE_CASTLE: Self = Self {
+        piece: Piece {
+            kind: PieceKind::King,
+            color: Color::Black,
+        },
+        source: BoardSquare::E8,
+        target: BoardSquare::G8,
+        is_castle: true,
+        is_en_passant: false,
+        is_capture: false,
+        promotion_into: None,
+    };
+    /// White is castling to their queen side
+    pub const WHITE_QUEENSIDE_CASTLE: Self = Self {
+        piece: Piece {
+            kind: PieceKind::King,
+            color: Color::White,
+        },
+        source: BoardSquare::E1,
+        target: BoardSquare::C1,
+        is_castle: true,
+        is_en_passant: false,
+        is_capture: false,
+        promotion_into: None,
+    };
+    /// White is castling to their king side
+    pub const WHITE_KINGSIDE_CASTLE: Self = Self {
+        piece: Piece {
+            kind: PieceKind::King,
+            color: Color::White,
+        },
+        source: BoardSquare::E1,
+        target: BoardSquare::G1,
+        is_castle: true,
+        is_en_passant: false,
+        is_capture: false,
+        promotion_into: None,
+    };
+
     /// Check the legality of this move
     ///
     /// The given move is legal if all of the following criteria are met:
