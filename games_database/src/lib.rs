@@ -32,7 +32,7 @@ pub struct GameEntry {
 
 /// The games from Lichess in January 2013
 ///
-/// Data was obtained from https://database.lichess.org/, and is licensed under the CC0 license.
+/// Data was obtained from <https://database.lichess.org/>, and is licensed under the CC0 license.
 const LICHESS_JAN_2013_DATABASE: &str = include_str!("../lichess_db_standard_rated_2013-01.pgn");
 
 /// A string interner for chess game openings
@@ -42,7 +42,7 @@ static OPENING_INTERNER: Interner = Interner::new();
 ///
 /// Note: Reading this file is slow, so this function performs the read once and saves the result.
 ///
-/// Data was obtained from https://database.lichess.org/, and is licensed under the CC0 license.
+/// Data was obtained from <https://database.lichess.org/>, and is licensed under the CC0 license.
 pub fn lichess_jan_2013_database() -> &'static [GameEntry] {
     static RESULT: OnceLock<&'static [GameEntry]> = OnceLock::new();
     RESULT.get_or_init(|| {

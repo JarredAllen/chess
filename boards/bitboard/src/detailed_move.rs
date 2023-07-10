@@ -4,13 +4,13 @@ use board::{BoardSquare, Color, LongAlgebraicNotationMove, Piece, PieceKind};
 /// All the details of a move figured out
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DetailedMove {
-    pub(crate) piece: Piece,
-    pub(crate) source: BoardSquare,
-    pub(crate) target: BoardSquare,
-    pub(crate) is_castle: bool,
-    pub(crate) is_en_passant: bool,
-    pub(crate) is_capture: bool,
-    pub(crate) promotion_into: Option<PieceKind>,
+    pub piece: Piece,
+    pub source: BoardSquare,
+    pub target: BoardSquare,
+    pub is_castle: bool,
+    pub is_en_passant: bool,
+    pub is_capture: bool,
+    pub promotion_into: Option<PieceKind>,
 }
 impl DetailedMove {
     /// Black is castling to their queen side

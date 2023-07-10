@@ -1,14 +1,19 @@
 use bitboard::BitboardRepresentation;
-use board::Board;
+use board::{Board, CheckStatus, Color};
 use players::Player;
 
+/// A backend which queries moves from the two players until the game is done
 pub struct Backend<White, Black> {
+    /// The current state of the board
     gamestate: BitboardRepresentation,
+    /// The white player
     white_player: White,
+    /// The black player
     black_player: Black,
 }
 
 impl<White: Player, Black: Player> Backend<White, Black> {
+    /// Create a new instance with the chess starting board
     pub fn new() -> Self {
         const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
         let player1 = White::position(DEFAULT_FEN, &[]);
@@ -20,21 +25,35 @@ impl<White: Player, Black: Player> Backend<White, Black> {
         }
     }
 
-    pub fn play_game(&mut self) {
-        loop {
-            let white_move = self.white_player.make_move();
-            self.gamestate
-                .make_long_move(white_move)
-                .expect("Illegal move");
-            self.black_player.react_to_move(white_move);
-            let black_move = self.black_player.make_move();
-            self.gamestate
-                .make_long_move(black_move)
-                .expect("Illegal move");
-            self.white_player.react_to_move(black_move);
-        }
+    /// Query whoever's turn it is to make a move
+    ///
+    /// This updates the game state and also informs the other player that the move was made.
+    pub fn play_half_move(&mut self) {
+        let mv = match self.gamestate.side_to_move {
+            Color::White => self.white_player.make_move(),
+            Color::Black => self.black_player.make_move(),
+        };
+        self.gamestate
+            .make_long_move(mv)
+            .expect("Illegal move provided");
+        match self.gamestate.side_to_move {
+            Color::White => self.white_player.react_to_move(mv),
+            Color::Black => self.black_player.react_to_move(mv),
+        };
     }
 
+    /// Play the game until it ends
+    ///
+    /// TODO Stalemate/draw detection
+    pub fn play_game(&mut self) {
+        while self.gamestate.check_status() != CheckStatus::Checkmate {
+            // TODO also check for stalemate/draw
+            self.play_half_move();
+        }
+        println!("Player {:?} wins!", self.gamestate.side_to_move.other());
+    }
+
+    /// Get the state of the game right now
     pub fn game_state(&self) -> &impl Board {
         &self.gamestate
     }

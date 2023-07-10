@@ -24,10 +24,11 @@ impl players::Player for TerminalUIPlayer {
             .board
             .detail_long_algebraic_move(opponent_move)
             .expect("Failed to make opponent move");
+        let opponent_move = self.board.move_to_algebraic(mv);
+        println!("Opponent made move: {opponent_move}");
         self.board
             .do_move_if_legal(mv)
             .expect("Failed to make move");
-        println!("Opponent made move: {opponent_move}");
     }
 
     fn make_move(&mut self) -> LongAlgebraicNotationMove {
