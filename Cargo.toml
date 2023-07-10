@@ -12,3 +12,6 @@ members = [
 bitflags = "2.3.3"
 quickcheck = "1.0"
 thiserror = "1.0"
+
+[profile.test]
+opt-level = 2
