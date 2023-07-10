@@ -2,7 +2,7 @@ use core::str::FromStr;
 
 use board::{
     AlgebraicNotationMove, AlgebraicNotationMoveType, Board, BoardSquare, CheckStatus, Color,
-    Piece, PieceKind,
+    LongAlgebraicNotationMove, Piece, PieceKind,
 };
 use utils::{debug_impossible, debug_unreachable, UnreachableExpect};
 
@@ -62,6 +62,8 @@ pub enum Error {
     MovingIntoCheck,
     #[error("attempted castle with King in check")]
     CastleOutOfCheck,
+    #[error("game has been drawn by 50 move rule")]
+    SeventyFiveMoveRule,
     #[error("some other error")]
     Other,
 }
@@ -217,6 +219,10 @@ impl BitboardRepresentation {
     /// Returns `Ok(())` if the move is legal, otherwise `Err(..)` containing the reason why the
     /// move is illegal.
     fn check_move_legality(&self, m: DetailedMove) -> Result<()> {
+        if self.halfmove_clock >= 150 {
+            // TODO Claim draw at 50 moves
+            return Err(Error::SeventyFiveMoveRule);
+        }
         let Some((own, other)) = m.legality_check() else {
             return Err(Error::MoveNeverLegal);
         };
@@ -320,7 +326,7 @@ impl BitboardRepresentation {
     ///
     /// # Safety
     /// There's some `unreachable_unchecked` in here, if the move isn't legal.
-    unsafe fn do_move(&mut self, m: DetailedMove) {
+    pub unsafe fn do_move(&mut self, m: DetailedMove) {
         match (m.piece.kind, m.piece.color) {
             (PieceKind::King, Color::White) => {
                 if m.is_capture {
@@ -678,6 +684,33 @@ impl BitboardRepresentation {
         })
     }
 
+    fn detail_long_algebraic_move(
+        &self,
+        mv: LongAlgebraicNotationMove,
+    ) -> Result<DetailedMove, AlgebraicNotationError> {
+        let piece = self
+            .get(mv.source)
+            .ok_or(AlgebraicNotationError::NoSourcePiece)?;
+        let is_castle = piece.kind == PieceKind::King
+            && mv.source.offset_to(mv.target).chebyshev_distance() >= 2;
+        let is_en_passant = piece.kind == PieceKind::Pawn
+            && mv.target == self.en_passant_target
+            && self.en_passant_target.is_valid();
+        let is_capture = is_en_passant
+            || self.get(mv.target).map_or(false, |target_piece| {
+                target_piece.color == piece.color.other()
+            });
+        Ok(DetailedMove {
+            piece,
+            source: mv.source,
+            target: mv.target,
+            promotion_into: mv.promotion,
+            is_capture,
+            is_castle,
+            is_en_passant,
+        })
+    }
+
     /// Get the square on which the given player's King resides
     pub const fn king_square(&self, color: Color) -> BoardSquare {
         match color {
@@ -810,6 +843,10 @@ impl BitboardRepresentation {
 
     /// Returns `true` if the given color's King is in check
     fn is_check(&self, color: Color) -> bool {
+        if self.halfmove_clock >= 150 {
+            // Can't be in check if the game has been drawn
+            return false;
+        }
         if !self.quick_check_heuristic(color) {
             return false;
         }
@@ -1033,6 +1070,14 @@ impl Board for BitboardRepresentation {
 
     fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<()> {
         let mv = self.detail_algebraic_move(mv)?;
+        self.do_move_if_legal(mv)
+    }
+
+    fn make_long_move(
+        &mut self,
+        mv: LongAlgebraicNotationMove,
+    ) -> std::result::Result<(), Self::Err> {
+        let mv = self.detail_long_algebraic_move(mv)?;
         self.do_move_if_legal(mv)
     }
 

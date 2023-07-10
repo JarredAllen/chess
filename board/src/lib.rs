@@ -1,5 +1,5 @@
 use core::{fmt, str::FromStr};
-use std::error;
+use std::{error, fmt::Write};
 
 /// The types of pieces there are
 #[repr(u8)]
@@ -33,6 +33,18 @@ impl PieceKind {
             Self::Queen => 'Q',
             Self::King => 'K',
         }
+    }
+
+    pub const fn from_fen_letter(c: char) -> Option<Self> {
+        Some(match c {
+            'P' | 'p' => Self::Pawn,
+            'R' | 'r' => Self::Rook,
+            'N' | 'n' => Self::Knight,
+            'B' | 'b' => Self::Bishop,
+            'Q' | 'q' => Self::Queen,
+            'K' | 'k' => Self::King,
+            _ => return None,
+        })
     }
 
     /// Whether a pawn can promote into this kind of piece
@@ -173,6 +185,11 @@ pub trait Board: Sized {
     /// Returns `Some(())` if the move is legal, and `None` if it isn't.
     fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<(), Self::Err>;
 
+    /// Make the given move, in place
+    ///
+    /// Returns `Some(())` if the move is legal, and `None` if it isn't.
+    fn make_long_move(&mut self, mv: LongAlgebraicNotationMove) -> Result<(), Self::Err>;
+
     /// Make the board after the given sequence of moves
     fn from_move_sequence(
         moves: impl Iterator<Item = AlgebraicNotationMove>,
@@ -180,6 +197,17 @@ pub trait Board: Sized {
         let mut state = Self::initial_state();
         for m in moves {
             state.make_move(m)?;
+        }
+        Ok(state)
+    }
+
+    /// Make the board after the given sequence of moves
+    fn from_long_move_sequence(
+        moves: impl Iterator<Item = LongAlgebraicNotationMove>,
+    ) -> Result<Self, Self::Err> {
+        let mut state = Self::initial_state();
+        for m in moves {
+            state.make_long_move(m)?;
         }
         Ok(state)
     }
@@ -377,6 +405,73 @@ impl FromStr for AlgebraicNotationNormalMove {
             to_square,
             promotion,
         })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct LongAlgebraicNotationMove {
+    pub source: BoardSquare,
+    pub target: BoardSquare,
+    pub promotion: Option<PieceKind>,
+}
+impl LongAlgebraicNotationMove {
+    pub const NULL_MOVE: LongAlgebraicNotationMove = Self {
+        source: BoardSquare::INVALID,
+        target: BoardSquare::INVALID,
+        promotion: None,
+    };
+}
+impl FromStr for LongAlgebraicNotationMove {
+    type Err = BoardSquareFromStrErr;
+
+    /// Some examples:
+    /// ```
+    /// use board::{LongAlgebraicNotationMove, PieceKind, BoardSquare};
+    /// use core::str::FromStr;
+    ///
+    /// assert!(matches!(
+    ///     LongAlgebraicNotationMove::from_str("e2e4").unwrap(),
+    ///     LongAlgebraicNotationMove {
+    ///         source: BoardSquare::E2,
+    ///         target: BoardSquare::E4,
+    ///         promotion: None,
+    ///     },
+    /// ));
+    /// assert!(matches!(
+    ///     LongAlgebraicNotationMove::from_str("e7e8q").unwrap(),
+    ///     LongAlgebraicNotationMove {
+    ///         source: BoardSquare::E7,
+    ///         target: BoardSquare::E8,
+    ///         promotion: Some(PieceKind::Queen),
+    ///     },
+    /// ));
+    /// ```
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(if s == "0000" {
+            Self::NULL_MOVE
+        } else {
+            Self {
+                source: BoardSquare::from_str(&s[0..2])?,
+                target: BoardSquare::from_str(&s[2..4])?,
+                promotion: s.chars().nth(4).and_then(PieceKind::from_fen_letter),
+            }
+        })
+    }
+}
+impl fmt::Display for LongAlgebraicNotationMove {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let (Some(source), Some(target)) =
+            (self.source.as_str_legal(), self.target.as_str_legal())
+        {
+            f.write_str(source)?;
+            f.write_str(target)?;
+            if let Some(p) = self.promotion {
+                f.write_char(p.fen_letter().to_ascii_lowercase())?;
+            }
+            Ok(())
+        } else {
+            f.write_str("0000")
+        }
     }
 }
 

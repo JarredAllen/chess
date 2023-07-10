@@ -1,16 +1,20 @@
 [workspace]
 
 members = [
+    "backend",
     "board",
     "boards/bitboard",
     "games_database",
     "lib/utils",
     "lib/interner",
+    "players",
+    "players/monke",
 ]
 
 [workspace.dependencies]
 bitflags = "2.3.3"
 quickcheck = "1.0"
+rand = "0.8"
 thiserror = "1.0"
 
 [profile.test]

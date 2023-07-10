@@ -1,0 +1,12 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitboard = { version = "0.1.0", path = "../boards/bitboard" }
+board = { version = "0.1.0", path = "../board" }
+monke = { version = "0.1.0", path = "../players/monke" }
+players = { version = "0.1.0", path = "../players" }

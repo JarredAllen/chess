@@ -1,5 +1,5 @@
 use crate::Bitboard;
-use board::{BoardSquare, Color, Piece, PieceKind};
+use board::{BoardSquare, Color, LongAlgebraicNotationMove, Piece, PieceKind};
 
 /// All the details of a move figured out
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -315,6 +315,15 @@ impl DetailedMove {
             BoardSquare::from_rank_file((source_rank + target_rank) / 2, file)
         } else {
             BoardSquare::INVALID
+        }
+    }
+}
+impl From<DetailedMove> for LongAlgebraicNotationMove {
+    fn from(value: DetailedMove) -> Self {
+        Self {
+            source: value.source,
+            target: value.target,
+            promotion: value.promotion_into,
         }
     }
 }
