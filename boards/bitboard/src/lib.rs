@@ -454,7 +454,7 @@ impl BitboardRepresentation {
     /// If the given move is legal, then do it.
     ///
     /// Otherwise, this method returns `Err(..)` with why the move is illegal.
-    fn do_move_if_legal(&mut self, m: DetailedMove) -> Result<()> {
+    pub fn do_move_if_legal(&mut self, m: DetailedMove) -> Result<()> {
         self.check_move_legality(m)?;
         // SAFETY:
         // We just checked if the move is legal
@@ -466,7 +466,7 @@ impl BitboardRepresentation {
     ///
     /// This uses the current board state to disambiguate a lot of things which are left ambiguous
     /// in default algebraic notation.
-    fn detail_algebraic_move(
+    pub fn detail_algebraic_move(
         &self,
         m: AlgebraicNotationMove,
     ) -> Result<DetailedMove, AlgebraicNotationError> {
@@ -684,7 +684,7 @@ impl BitboardRepresentation {
         })
     }
 
-    fn detail_long_algebraic_move(
+    pub fn detail_long_algebraic_move(
         &self,
         mv: LongAlgebraicNotationMove,
     ) -> Result<DetailedMove, AlgebraicNotationError> {
@@ -906,6 +906,39 @@ impl BitboardRepresentation {
                 })
             })
             .filter(|&mv| self.check_move_legality(mv).is_ok())
+    }
+
+    /// Convert the given move back into algebraic notation
+    pub fn move_to_algebraic(&self, mv: DetailedMove) -> AlgebraicNotationMove {
+        let check = {
+            let mut next = self.clone();
+            if let Ok(()) = next.do_move_if_legal(mv) {
+                next.check_status()
+            } else {
+                CheckStatus::None
+            }
+        };
+        let move_type = if mv.is_castle {
+            match mv.target.to_rank_file() {
+                Some((_, 2)) => AlgebraicNotationMoveType::CastleQueenside,
+                Some((_, 6)) => AlgebraicNotationMoveType::CastleKingside,
+                _ => unreachable!(),
+            }
+        } else {
+            // TODO only include from rank and from file if necessary to disambiguate
+            let (from_rank, from_file) = mv.target.to_rank_file().expect("Invalid move target");
+            let from_file = char::from_u32('a' as u32 + from_file as u32)
+                .expect_unreachable("Valid move target with invalid file number");
+            AlgebraicNotationMoveType::Normal(board::AlgebraicNotationNormalMove {
+                to_square: mv.target,
+                kind: mv.piece.kind,
+                capture: mv.is_capture,
+                promotion: mv.promotion_into,
+                from_file: Some(from_file),
+                from_rank: Some(from_rank),
+            })
+        };
+        AlgebraicNotationMove { move_type, check }
     }
 }
 

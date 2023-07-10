@@ -9,6 +9,7 @@ members = [
     "lib/interner",
     "players",
     "players/monke",
+    "players/terminal-ui",
 ]
 
 [workspace.dependencies]

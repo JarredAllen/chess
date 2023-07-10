@@ -10,3 +10,4 @@ bitboard = { version = "0.1.0", path = "../boards/bitboard" }
 board = { version = "0.1.0", path = "../board" }
 monke = { version = "0.1.0", path = "../players/monke" }
 players = { version = "0.1.0", path = "../players" }
+terminal-ui = { version = "0.1.0", path = "../players/terminal-ui" }
