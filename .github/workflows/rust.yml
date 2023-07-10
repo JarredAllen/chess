@@ -14,10 +14,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
+    - name: Install dependencies
+      run: cargo install cargo-udeps
     - name: Formatting
       run: cargo fmt --check --verbose
     - name: Clippy
       run: cargo clippy -- --deny warnings
+    - name: Unused dependencies
+      run: cargo +nightly udeps
   test:
     runs-on: ubuntu-latest
     steps:
