@@ -1,8 +1,9 @@
 use bitboard::BitboardRepresentation;
-use board::{Board, Color, GameOutcome};
+use board::{AlgebraicNotationMove, Board, Color, GameOutcome};
 use players::Player;
 
 /// A backend which queries moves from the two players until the game is done
+#[derive(Debug)]
 pub struct Backend<White, Black> {
     /// The current state of the board
     gamestate: BitboardRepresentation,
@@ -10,6 +11,8 @@ pub struct Backend<White, Black> {
     white_player: White,
     /// The black player
     black_player: Black,
+    /// The moves which have been played
+    move_history: Vec<AlgebraicNotationMove>,
 }
 
 impl<White: Player, Black: Player> Backend<White, Black> {
@@ -22,6 +25,7 @@ impl<White: Player, Black: Player> Backend<White, Black> {
             gamestate: BitboardRepresentation::INITIAL_STATE,
             white_player: player1,
             black_player: player2,
+            move_history: Vec::new(),
         }
     }
 
@@ -33,6 +37,13 @@ impl<White: Player, Black: Player> Backend<White, Black> {
             Color::White => self.white_player.make_move(),
             Color::Black => self.black_player.make_move(),
         };
+        self.move_history.push(
+            self.gamestate.move_to_algebraic(
+                self.gamestate
+                    .detail_long_algebraic_move(mv)
+                    .expect("Illegal move"),
+            ),
+        );
         self.gamestate
             .make_long_move(mv)
             .expect("Illegal move provided");
@@ -52,6 +63,24 @@ impl<White: Player, Black: Player> Backend<White, Black> {
     /// Get the state of the game right now
     pub fn game_state(&self) -> &impl Board {
         &self.gamestate
+    }
+
+    /// Get the PGN notation for this move
+    pub fn to_pgn(&self) -> String {
+        use core::fmt::Write;
+
+        let mut pgn_buffer = String::new();
+        for (move_count, moves) in self.move_history.chunks(2).enumerate() {
+            let _ = pgn_buffer.write_fmt(format_args!("{}. {}", move_count + 1, moves[0]));
+            if let Some(black) = moves.get(1) {
+                let _ = pgn_buffer.write_fmt(format_args!(" {} ", black));
+            }
+        }
+        if pgn_buffer.chars().nth_back(0) == Some(' ') {
+            pgn_buffer.pop();
+        }
+        pgn_buffer.shrink_to_fit();
+        pgn_buffer
     }
 }
 

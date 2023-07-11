@@ -8,6 +8,7 @@ use rand::{rngs::SmallRng, seq::IteratorRandom, SeedableRng};
 /// A player which makes purely random moves
 ///
 /// The name is pronounced like "Monkey"
+#[derive(Debug)]
 pub struct MonkePlayer {
     board: BitboardRepresentation,
     rng: SmallRng,

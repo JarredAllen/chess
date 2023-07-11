@@ -54,6 +54,17 @@ impl PieceKind {
             PieceKind::Rook | PieceKind::Queen | PieceKind::Knight | PieceKind::Bishop => true,
         }
     }
+
+    /// Returns the string for promotion for this piece in algebraic notation
+    pub const fn promotion_str(self) -> &'static str {
+        match self {
+            Self::Rook => "=R",
+            Self::Knight => "=N",
+            Self::Bishop => "=B",
+            Self::Queen => "=Q",
+            _ => unreachable!(),
+        }
+    }
 }
 
 /// The colors a piece can have
@@ -308,9 +319,7 @@ impl fmt::Display for AlgebraicNotationNormalMove {
         let from_rank = self.from_rank.map_or_else(String::new, |r| r.to_string());
         let capture = if self.capture { "x" } else { "" };
         let to_square = self.to_square.as_str();
-        let promotion = self
-            .promotion
-            .map_or_else(String::new, |p| p.fen_letter().to_string());
+        let promotion = self.promotion.map_or("", |p| p.promotion_str());
         write!(
             f,
             "{}{}{}{}{}{}",

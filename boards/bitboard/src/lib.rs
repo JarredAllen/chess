@@ -925,17 +925,57 @@ impl BitboardRepresentation {
                 _ => unreachable!(),
             }
         } else {
-            // TODO only include from rank and from file if necessary to disambiguate
-            let (from_rank, from_file) = mv.target.to_rank_file().expect("Invalid move target");
+            let (same_file, same_rank, ambiguous) = self
+                .piece_bitboard(mv.piece)
+                .squares_iter()
+                .filter(|sq| {
+                    let other_mv = DetailedMove { source: *sq, ..mv };
+                    self.check_move_legality(other_mv).is_ok() && *sq != mv.source
+                })
+                .fold((false, false, false), |(same_file, same_rank, _), sq| {
+                    let offset = mv.source.offset_to(sq);
+                    (
+                        same_file || offset.rank() == 0,
+                        same_rank || offset.file() == 0,
+                        true,
+                    )
+                });
+            let (from_rank, from_file) = mv.source.to_rank_file().expect("Invalid move target");
             let from_file = char::from_u32('a' as u32 + from_file as u32)
                 .expect_unreachable("Valid move target with invalid file number");
+            let (from_rank, from_file) = if ambiguous {
+                (
+                    match (
+                        same_rank,
+                        same_file,
+                        mv.piece.kind == PieceKind::Pawn && mv.is_capture,
+                    ) {
+                        (false, false, false) | (true, true, _) | (false, true, false) => {
+                            Some(from_rank)
+                        }
+                        _ => None,
+                    },
+                    match (
+                        same_rank,
+                        same_file,
+                        mv.piece.kind == PieceKind::Pawn && mv.is_capture,
+                    ) {
+                        (true, _, _) | (_, _, true) => Some(from_file),
+                        _ => None,
+                    },
+                )
+            } else if mv.piece.kind == PieceKind::Pawn && mv.is_capture {
+                (None, Some(from_file))
+            } else {
+                (None, None)
+            };
             AlgebraicNotationMoveType::Normal(board::AlgebraicNotationNormalMove {
                 to_square: mv.target,
                 kind: mv.piece.kind,
                 capture: mv.is_capture,
                 promotion: mv.promotion_into,
-                from_file: Some(from_file),
-                from_rank: Some(from_rank),
+                from_file,
+                from_rank,
             })
         };
         AlgebraicNotationMove { move_type, check }
@@ -1239,7 +1279,7 @@ mod tests {
                     }
                     continue 'gameloop;
                 }
-                // TODO Add a separate test for this once I have a good pool of FENs to work with
+                // TODO Add a separate test for these once I have a pool of moves and board states.
                 assert_eq!(board, BitboardRepresentation::from_fen(&board.to_fen()));
             }
         }

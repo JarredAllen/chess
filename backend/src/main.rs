@@ -12,4 +12,5 @@ fn main() {
         GameOutcome::Won(Color::Black) => println!("Black wins!"),
         GameOutcome::InProgress => unreachable!("Finished game is still in progress"),
     }
+    println!("PGN:\n{}", backend.to_pgn());
 }
