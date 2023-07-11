@@ -156,16 +156,6 @@ impl Piece {
     }
 }
 
-/// The possible outcomes of a game
-pub enum GameOutcome {
-    /// White checkmated black
-    WhiteCheckmate,
-    /// Black checkmated white
-    BlackCheckmate,
-    /// Draw because one player couldn't make any moves
-    Draw,
-}
-
 /// Functionality belonging to all boards that can be made
 pub trait Board: Sized {
     /// An error type that can be returned
@@ -214,6 +204,9 @@ pub trait Board: Sized {
 
     /// Returns if the side to move is currently in check or checkmate
     fn check_status(&self) -> CheckStatus;
+
+    /// Returns the outcome of the game so far
+    fn game_outcome(&self) -> GameOutcome;
 }
 
 #[derive(Debug)]
@@ -861,6 +854,17 @@ impl BoardSquareOffset {
             file
         }
     }
+}
+
+/// The possible outcomes of a game
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum GameOutcome {
+    /// The game is still ongoing
+    InProgress,
+    /// Draw because one player couldn't make any moves
+    Draw,
+    /// The given color has won the game
+    Won(Color),
 }
 
 #[cfg(test)]

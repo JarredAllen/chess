@@ -2,7 +2,7 @@ use core::str::FromStr;
 
 use board::{
     AlgebraicNotationMove, AlgebraicNotationMoveType, Board, BoardSquare, CheckStatus, Color,
-    LongAlgebraicNotationMove, Piece, PieceKind,
+    GameOutcome, LongAlgebraicNotationMove, Piece, PieceKind,
 };
 use utils::{debug_impossible, debug_unreachable, UnreachableExpect};
 
@@ -1119,6 +1119,22 @@ impl Board for BitboardRepresentation {
             (false, _) => CheckStatus::None,
             (true, false) => CheckStatus::Check,
             (true, true) => CheckStatus::Checkmate,
+        }
+    }
+
+    fn game_outcome(&self) -> board::GameOutcome {
+        if self.halfmove_clock >= 150 {
+            // 75-move rule
+            GameOutcome::Draw
+        } else if self.is_checkmate() {
+            // Checkmate
+            GameOutcome::Won(self.side_to_move.other())
+        } else if self.legal_moves().count() == 0 {
+            // Stalemate
+            GameOutcome::Draw
+        } else {
+            // No loss has been hit, so keep going
+            GameOutcome::InProgress
         }
     }
 }

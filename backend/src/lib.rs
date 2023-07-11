@@ -1,5 +1,5 @@
 use bitboard::BitboardRepresentation;
-use board::{Board, CheckStatus, Color};
+use board::{Board, Color, GameOutcome};
 use players::Player;
 
 /// A backend which queries moves from the two players until the game is done
@@ -43,14 +43,10 @@ impl<White: Player, Black: Player> Backend<White, Black> {
     }
 
     /// Play the game until it ends
-    ///
-    /// TODO Stalemate/draw detection
     pub fn play_game(&mut self) {
-        while self.gamestate.check_status() != CheckStatus::Checkmate {
-            // TODO also check for stalemate/draw
+        while self.game_state().game_outcome() == GameOutcome::InProgress {
             self.play_half_move();
         }
-        println!("Player {:?} wins!", self.gamestate.side_to_move.other());
     }
 
     /// Get the state of the game right now
