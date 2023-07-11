@@ -1,4 +1,4 @@
-name: Rust
+name: Rust checks
 
 on:
   push:
@@ -14,7 +14,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Install dependencies
+    - name: Install nightly toolchain
+      run: rustup toolchain install nightly
+    - name: Install udeps dependency
       # Debug mode because we're not running it for very long,
       # so optimizations help less than the time it takes to
       # compile with them.
