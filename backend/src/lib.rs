@@ -17,14 +17,14 @@ pub struct Backend<White, Black> {
 
 impl<White: Player, Black: Player> Backend<White, Black> {
     /// Create a new instance with the chess starting board
-    pub fn new() -> Self {
+    pub fn new(mut white_player: White, mut black_player: Black) -> Self {
         const DEFAULT_FEN: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-        let player1 = White::position(DEFAULT_FEN, &[]);
-        let player2 = Black::position(DEFAULT_FEN, &[]);
+        white_player.position(DEFAULT_FEN, &[]);
+        black_player.position(DEFAULT_FEN, &[]);
         Self {
             gamestate: BitboardRepresentation::INITIAL_STATE,
-            white_player: player1,
-            black_player: player2,
+            white_player,
+            black_player,
             move_history: Vec::new(),
         }
     }
@@ -84,8 +84,8 @@ impl<White: Player, Black: Player> Backend<White, Black> {
     }
 }
 
-impl<White: Player, Black: Player> Default for Backend<White, Black> {
+impl<White: Player + Default, Black: Player + Default> Default for Backend<White, Black> {
     fn default() -> Self {
-        Self::new()
+        Self::new(White::default(), Black::default())
     }
 }

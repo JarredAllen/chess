@@ -10,13 +10,22 @@ pub struct TerminalUIPlayer {
     board: BitboardRepresentation,
 }
 
+impl TerminalUIPlayer {
+    /// Create a new player with the initial board state
+    pub const fn new() -> Self {
+        Self {
+            board: BitboardRepresentation::INITIAL_STATE,
+        }
+    }
+}
+
 impl players::Player for TerminalUIPlayer {
-    fn position(fen: &str, moves: &[LongAlgebraicNotationMove]) -> Self {
+    fn position(&mut self, fen: &str, moves: &[LongAlgebraicNotationMove]) {
         let mut board = BitboardRepresentation::from_fen(fen);
         for mv in moves {
             board.make_long_move(*mv).expect("Failed to make move");
         }
-        Self { board }
+        self.board = board;
     }
 
     fn react_to_move(&mut self, opponent_move: LongAlgebraicNotationMove) {
@@ -52,5 +61,11 @@ impl players::Player for TerminalUIPlayer {
             .do_move_if_legal(mv)
             .expect("Illegal move provided");
         mv.into()
+    }
+}
+
+impl Default for TerminalUIPlayer {
+    fn default() -> Self {
+        Self::new()
     }
 }
