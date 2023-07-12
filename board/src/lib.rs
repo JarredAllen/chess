@@ -706,13 +706,19 @@ impl BoardSquare {
     /// Gets the offset to the given target
     ///
     /// If either input is invalid, then the resulting offset might make no sense.
+    /// ```
+    /// use board::BoardSquare;
+    ///
+    /// assert_eq!(BoardSquare::A1.offset_to(BoardSquare::D2).rank(), 1);
+    /// assert_eq!(BoardSquare::A1.offset_to(BoardSquare::D2).file(), 3);
+    /// ```
     pub const fn offset_to(self, other: Self) -> BoardSquareOffset {
         let (Some((self_rank, self_file)), Some((other_rank, other_file))) = (self.to_rank_file(), other.to_rank_file()) else {
             return BoardSquareOffset::INVALID;
         };
         BoardSquareOffset::from_rank_file(
-            self_rank as i8 - other_rank as i8,
-            self_file as i8 - other_file as i8,
+            other_rank as i8 - self_rank as i8,
+            other_file as i8 - self_file as i8,
         )
     }
 }
@@ -945,6 +951,16 @@ mod tests {
                 let offset = BoardSquareOffset::from_rank_file(rank, file);
                 assert_eq!(offset.rank(), rank);
                 assert_eq!(offset.file(), file);
+            }
+        }
+    }
+
+    #[test]
+    fn test_offset_all_board_pairs() {
+        for source in BoardSquare::all_squares() {
+            for target in BoardSquare::all_squares() {
+                let offset = source.offset_to(target);
+                assert_eq!(offset.offset(source), target);
             }
         }
     }

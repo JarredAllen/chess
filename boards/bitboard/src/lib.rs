@@ -909,6 +909,33 @@ impl BitboardRepresentation {
     }
 
     /// Convert the given move back into algebraic notation
+    ///
+    /// ```
+    /// use std::str::FromStr;
+    /// use board::{Board, Color, PieceKind, Piece, BoardSquare, AlgebraicNotationMove};
+    /// use bitboard::{BitboardRepresentation, DetailedMove};
+    ///
+    /// let board = BitboardRepresentation::from_fen(
+    ///     "r6r/pp1k2p1/2p3p1/8/8/2PPP1bP/PP1K2P1/R6R b - - 2 21"
+    /// );
+    /// let algebraic = board.move_to_algebraic(DetailedMove {
+    ///             piece: Piece {
+    ///                 kind: PieceKind::Rook,
+    ///                 color: Color::Black,
+    ///             },
+    ///             source: BoardSquare::A8,
+    ///             target: BoardSquare::F8,
+    ///             is_castle: false,
+    ///             is_en_passant: false,
+    ///             is_capture: false,
+    ///             promotion_into: None,
+    ///         });
+    /// assert_eq!(
+    ///     algebraic,
+    ///     AlgebraicNotationMove::from_str("Raf8").unwrap(),
+    ///     "was {algebraic}, expected Raf8",
+    /// );
+    /// ```
     pub fn move_to_algebraic(&self, mv: DetailedMove) -> AlgebraicNotationMove {
         let check = {
             let mut next = self.clone();
@@ -925,50 +952,47 @@ impl BitboardRepresentation {
                 _ => unreachable!(),
             }
         } else {
-            let (same_file, same_rank, ambiguous) = self
-                .piece_bitboard(mv.piece)
-                .squares_iter()
-                .filter(|sq| {
-                    let other_mv = DetailedMove { source: *sq, ..mv };
-                    self.check_move_legality(other_mv).is_ok() && *sq != mv.source
-                })
-                .fold((false, false, false), |(same_file, same_rank, _), sq| {
-                    let offset = mv.source.offset_to(sq);
-                    (
-                        same_file || offset.rank() == 0,
-                        same_rank || offset.file() == 0,
-                        true,
-                    )
-                });
             let (from_rank, from_file) = mv.source.to_rank_file().expect("Invalid move target");
+            // Adjust from the internal representation to algebraic notation
+            let from_rank = from_rank + 1;
             let from_file = char::from_u32('a' as u32 + from_file as u32)
                 .expect_unreachable("Valid move target with invalid file number");
+            // Decide which of initial rank and file are necessary for disambiguation
+            let ambiguous = self.piece_bitboard(mv.piece).squares_iter().any(|sq| {
+                let other_mv = DetailedMove { source: sq, ..mv };
+                sq != mv.source && self.check_move_legality(other_mv).is_ok()
+            });
             let (from_rank, from_file) = if ambiguous {
-                (
-                    match (
-                        same_rank,
-                        same_file,
-                        mv.piece.kind == PieceKind::Pawn && mv.is_capture,
-                    ) {
-                        (false, false, false) | (true, true, _) | (false, true, false) => {
-                            Some(from_rank)
-                        }
-                        _ => None,
-                    },
-                    match (
-                        same_rank,
-                        same_file,
-                        mv.piece.kind == PieceKind::Pawn && mv.is_capture,
-                    ) {
-                        (true, _, _) | (_, _, true) => Some(from_file),
-                        _ => None,
-                    },
-                )
+                let same_rank = self
+                    .piece_bitboard(mv.piece)
+                    .intersection(Bitboard::containing_rank(mv.source))
+                    .intersection(!Bitboard::from_board_square(mv.source))
+                    .squares_iter()
+                    .any(|sq| {
+                        let other_mv = DetailedMove { source: sq, ..mv };
+                        self.check_move_legality(other_mv).is_ok()
+                    });
+                let same_file = self
+                    .piece_bitboard(mv.piece)
+                    .intersection(Bitboard::containing_file(mv.source))
+                    .intersection(!Bitboard::from_board_square(mv.source))
+                    .squares_iter()
+                    .any(|sq| {
+                        let other_mv = DetailedMove { source: sq, ..mv };
+                        self.check_move_legality(other_mv).is_ok()
+                    });
+                match (same_rank, same_file) {
+                    (true, true) => (Some(from_rank), Some(from_file)),
+                    (false, true) => (Some(from_rank), None),
+                    (true, false) | (false, false) => (None, Some(from_file)),
+                }
             } else if mv.piece.kind == PieceKind::Pawn && mv.is_capture {
+                // Pawn captures always include the source file, even if not ambiguous
                 (None, Some(from_file))
             } else {
                 (None, None)
             };
+            // Move everything to the right place
             AlgebraicNotationMoveType::Normal(board::AlgebraicNotationNormalMove {
                 to_square: mv.target,
                 kind: mv.piece.kind,
@@ -1280,6 +1304,21 @@ mod tests {
                     continue 'gameloop;
                 }
                 // TODO Add a separate test for these once I have a pool of moves and board states.
+                /* TODO This doesn't work with the dataset because some moves are overspecified
+                let computed_algebraic = board_copy
+                    .move_to_algebraic(board_copy.detail_algebraic_move(mv.notated).unwrap());
+                if computed_algebraic != mv.notated {
+                    eprintln!(
+                        "Disagree on move {} from board fen:\n{}\nin game {}\nchose {}\n",
+                        mv.notated,
+                        board_copy.to_fen(),
+                        game.identifier,
+                        computed_algebraic,
+                    );
+                    failure_count += 1;
+                    continue 'gameloop;
+                }
+                */
                 assert_eq!(board, BitboardRepresentation::from_fen(&board.to_fen()));
             }
         }
