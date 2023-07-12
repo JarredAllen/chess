@@ -1,5 +1,5 @@
 use std::{
-    fs::{File, self},
+    fs::{self, File},
     io::{self, BufRead, Write},
     path::Path,
 };
@@ -16,7 +16,7 @@ fn main() {
         {
             continue;
         }
-        if let Some(parent) =file_path.parent() {
+        if let Some(parent) = file_path.parent() {
             fs::create_dir_all(parent).expect("Error creating directory");
         }
         let file_download = ureq::get(file_url)
