@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 board = { version = "0.1.0", path = "../board" }
 interner = { version = "0.1.0", path = "../lib/interner" }
+
+[build-dependencies]
+ureq.workspace = true
+zstd.workspace = true

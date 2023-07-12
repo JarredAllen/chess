@@ -33,7 +33,8 @@ pub struct GameEntry {
 /// The games from Lichess in January 2013
 ///
 /// Data was obtained from <https://database.lichess.org/>, and is licensed under the CC0 license.
-const LICHESS_JAN_2013_DATABASE: &str = include_str!("../lichess_db_standard_rated_2013-01.pgn");
+const LICHESS_JAN_2013_DATABASE: &str =
+    include_str!("../games/lichess_db_standard_rated_2013-01.pgn");
 
 /// A string interner for chess game openings
 static OPENING_INTERNER: Interner = Interner::new();

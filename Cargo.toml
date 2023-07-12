@@ -17,6 +17,8 @@ bitflags = "2.3.3"
 quickcheck = "1.0"
 rand = "0.8"
 thiserror = "1.0"
+ureq = "2.0"
+zstd = "0.12"
 
 [profile.test]
 opt-level = 2
