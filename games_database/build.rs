@@ -29,8 +29,10 @@ fn main() {
         .lines();
         let mut output_file = File::create(file_path).expect("Failed to open file");
         for line in decompressed {
+            let mut line = line.expect("Error reading input from internet");
+            line.push('\n');
             output_file
-                .write_all(line.expect("Error reading input from internet").as_bytes())
+                .write_all(line.as_bytes())
                 .expect("Error writing to file");
         }
     }
