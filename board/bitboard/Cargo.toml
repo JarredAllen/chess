@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bitflags.workspace = true
 board.path = "../../board"
 thiserror.workspace = true
 utils = { version = "0.1.0", path = "../../lib/utils" }

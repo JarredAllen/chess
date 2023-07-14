@@ -1,6 +1,8 @@
 use core::{fmt, str::FromStr};
 use std::{error, fmt::Write};
 
+pub mod variants;
+
 /// The types of pieces there are
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

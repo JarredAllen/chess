@@ -38,7 +38,6 @@ checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
 name = "bitboard"
 version = "0.1.0"
 dependencies = [
- "bitflags",
  "board",
  "games_database",
  "quickcheck",
@@ -55,6 +54,9 @@ checksum = "630be753d4e58660abd17930c71b647fe46c27ea6b63cc59e1e3851406972e42"
 [[package]]
 name = "board"
 version = "0.1.0"
+dependencies = [
+ "bitflags",
+]
 
 [[package]]
 name = "bumpalo"

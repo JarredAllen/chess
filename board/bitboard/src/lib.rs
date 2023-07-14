@@ -12,22 +12,33 @@ mod detailed_move;
 pub use crate::bitboard::Bitboard;
 pub use crate::detailed_move::DetailedMove;
 
-pub type Result<T, E = Error> = core::result::Result<T, E>;
+/// The bitboards representing a traditional chess board
+pub type BitboardRepresentation = BitboardRepresentationInner<board::variants::Traditional>;
 
-bitflags::bitflags! {
-    /// Which castles are allowed (the king and rook haven't moved yet)
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    pub struct CastleOptions: u8 {
-        const WhiteKingside = 0b0000_0001;
-        const WhiteQueenside = 0b0000_0010;
-        /// A mask for whether white can castle in either direction
-        const White = 0b0000_0011;
-        const BlackKingside = 0b0000_0100;
-        const BlackQueenside = 0b0000_1000;
-        /// A mask for whether black can castle in either direction
-        const Black = 0b0000_1100;
-    }
+impl BitboardRepresentation {
+    /// The state at the start of a normal chess game
+    pub const INITIAL_STATE: Self = Self {
+        white_pawn: Bitboard(0xFF00),
+        white_rook: Bitboard(0x81),
+        white_knight: Bitboard(0x42),
+        white_bishop: Bitboard(0x24),
+        white_queen: Bitboard(0x08),
+        white_king: BoardSquare(0x04),
+        black_pawn: Bitboard(0x00FF0000_00000000),
+        black_rook: Bitboard(0x81000000_00000000),
+        black_knight: Bitboard(0x42000000_00000000),
+        black_bishop: Bitboard(0x24000000_00000000),
+        black_queen: Bitboard(0x08000000_00000000),
+        black_king: BoardSquare(0x74),
+        en_passant_target: BoardSquare::INVALID,
+        side_to_move: Color::White,
+        castles: <board::variants::Traditional as board::variants::Variant>::INITIAL_CASTLE_STATE,
+        halfmove_clock: 0,
+        turn_counter: 1,
+    };
 }
+
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AlgebraicNotationError {
@@ -69,8 +80,11 @@ pub enum Error {
 }
 
 /// Represent using a bunch of bitboards
+///
+/// This crate provides type aliases for different variants, which are recommended to be used
+/// explicitly.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BitboardRepresentation {
+pub struct BitboardRepresentationInner<Variant: board::variants::Variant> {
     // piece placement
     pub white_pawn: Bitboard,
     pub white_rook: Bitboard,
@@ -95,7 +109,7 @@ pub struct BitboardRepresentation {
     ///
     /// These castles aren't necessarily legal right now, as it may be blocked by intervening
     /// pieces and/or checks.
-    pub castles: CastleOptions,
+    pub castles: Variant::CastleState,
 
     // clocks
     /// Number of half-moves since pawn was moved or piece was captured
@@ -106,7 +120,7 @@ pub struct BitboardRepresentation {
     pub turn_counter: u16,
 }
 
-impl BitboardRepresentation {
+impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// A board with no pieces on it and no moves made
     pub const EMPTY: Self = Self {
         white_pawn: Bitboard::empty(),
@@ -123,30 +137,9 @@ impl BitboardRepresentation {
         black_king: BoardSquare::INVALID,
         en_passant_target: BoardSquare::INVALID,
         side_to_move: Color::White,
-        castles: CastleOptions::empty(),
+        castles: Variant::INITIAL_CASTLE_STATE,
         halfmove_clock: 0,
         turn_counter: 0,
-    };
-
-    /// The state at the start of a chess game
-    pub const INITIAL_STATE: Self = Self {
-        white_pawn: Bitboard(0xFF00),
-        white_rook: Bitboard(0x81),
-        white_knight: Bitboard(0x42),
-        white_bishop: Bitboard(0x24),
-        white_queen: Bitboard(0x08),
-        white_king: BoardSquare(0x04),
-        black_pawn: Bitboard(0x00FF0000_00000000),
-        black_rook: Bitboard(0x81000000_00000000),
-        black_knight: Bitboard(0x42000000_00000000),
-        black_bishop: Bitboard(0x24000000_00000000),
-        black_queen: Bitboard(0x08000000_00000000),
-        black_king: BoardSquare(0x74),
-        en_passant_target: BoardSquare::INVALID,
-        side_to_move: Color::White,
-        castles: CastleOptions::all(),
-        halfmove_clock: 0,
-        turn_counter: 1,
     };
 
     /// The squares occupied by white's pieces
@@ -256,14 +249,8 @@ impl BitboardRepresentation {
                 _ => return Err(Error::IllegalCastle),
             };
             // Check that this castle hasn't been disallowed because we've moved the piece
-            if !self.castles.contains(match (kingside, m.piece.color) {
-                (true, Color::White) => CastleOptions::WhiteKingside,
-                (false, Color::White) => CastleOptions::WhiteQueenside,
-                (true, Color::Black) => CastleOptions::BlackKingside,
-                (false, Color::Black) => CastleOptions::BlackQueenside,
-            }) {
-                return Err(Error::IllegalCastle);
-            }
+            Variant::is_castle_allowed(self.castles, m.piece.color, kingside)
+                .ok_or(Error::IllegalCastle)?;
         }
         if m.is_en_passant
             && !(self.en_passant_target.is_valid() && self.en_passant_target == m.target)
@@ -352,7 +339,12 @@ impl BitboardRepresentation {
                 debug_impossible!(m.is_en_passant, "Can't en passant with a king");
                 debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.white_king = m.target;
-                self.castles &= !CastleOptions::White;
+                self.castles = Variant::is_castle_allowed(
+                    self.castles,
+                    Color::White,
+                    m.target == BoardSquare::G1,
+                )
+                .expect_unreachable("Did illegal castle");
             }
             (PieceKind::King, Color::Black) => {
                 if m.is_capture {
@@ -378,7 +370,12 @@ impl BitboardRepresentation {
                 debug_impossible!(m.is_en_passant, "Can't en passant with a king");
                 debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.black_king = m.target;
-                self.castles &= !CastleOptions::Black;
+                self.castles = Variant::is_castle_allowed(
+                    self.castles,
+                    Color::Black,
+                    m.target == BoardSquare::G8,
+                )
+                .expect_unreachable("Did illegal castle");
             }
             _ => {
                 *self.piece_bitboard_mut(m.piece) &=
@@ -396,23 +393,11 @@ impl BitboardRepresentation {
                         kind: PieceKind::Pawn,
                         color: m.piece.color.other(),
                     }) &= !clear_bitboard;
-                } else {
-                    if m.piece.kind == PieceKind::Rook {
-                        self.castles &= !match m.source {
-                            BoardSquare::A1 => CastleOptions::WhiteQueenside,
-                            BoardSquare::H1 => CastleOptions::WhiteKingside,
-                            BoardSquare::A8 => CastleOptions::BlackQueenside,
-                            BoardSquare::H8 => CastleOptions::BlackKingside,
-                            _ => CastleOptions::empty(),
-                        }
-                    }
-                    if m.is_capture {
-                        if let Some(piece) = self.get(m.target) {
-                            *self.piece_bitboard_mut(piece) &=
-                                !Bitboard::from_board_square(m.target);
-                        } else {
-                            debug_unreachable!("Capture move without target piece");
-                        }
+                } else if m.is_capture {
+                    if let Some(piece) = self.get(m.target) {
+                        *self.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(m.target);
+                    } else {
+                        debug_unreachable!("Capture move without target piece");
                     }
                 }
                 if m.piece.kind != PieceKind::Pawn {
@@ -434,15 +419,7 @@ impl BitboardRepresentation {
         if self.side_to_move == Color::White {
             self.turn_counter += 1;
         }
-        if m.is_capture {
-            self.castles &= !match m.target {
-                BoardSquare::A1 => CastleOptions::WhiteQueenside,
-                BoardSquare::H1 => CastleOptions::WhiteKingside,
-                BoardSquare::A8 => CastleOptions::BlackQueenside,
-                BoardSquare::H8 => CastleOptions::BlackKingside,
-                _ => CastleOptions::empty(),
-            };
-        }
+        self.castles = Variant::update_castle_state(self.castles, m.piece, m.source, m.target);
         if m.is_capture || m.piece.kind == PieceKind::Pawn {
             self.halfmove_clock = 0;
         } else {
@@ -1006,7 +983,7 @@ impl BitboardRepresentation {
     }
 }
 
-impl Board for BitboardRepresentation {
+impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Variant> {
     type Err = Error;
 
     fn to_fen(&self) -> String {
@@ -1046,25 +1023,7 @@ impl Board for BitboardRepresentation {
             Color::White => "w",
             Color::Black => "b",
         };
-        let castling = {
-            let mut options = String::with_capacity(4);
-            if self.castles.contains(CastleOptions::WhiteKingside) {
-                options.push('K');
-            }
-            if self.castles.contains(CastleOptions::WhiteQueenside) {
-                options.push('Q');
-            }
-            if self.castles.contains(CastleOptions::BlackKingside) {
-                options.push('k');
-            }
-            if self.castles.contains(CastleOptions::BlackQueenside) {
-                options.push('q');
-            }
-            if options.is_empty() {
-                options.push('-');
-            }
-            options
-        };
+        let castling = Variant::castle_state_to_fen(self.castles);
         let en_passant_target = self.en_passant_target.as_str_legal().unwrap_or("-");
         let halfmove_clock = self.halfmove_clock;
         let fullmove_coutner = self.turn_counter;
@@ -1124,24 +1083,7 @@ impl Board for BitboardRepresentation {
                 _ => panic!("Error parsing fen"),
             };
         }
-        {
-            let mut castling = terms.next().expect("Error parsing FEN");
-            if castling.get(0..1) == Some("K") {
-                board.castles |= CastleOptions::WhiteKingside;
-                castling = &castling[1..];
-            }
-            if castling.get(0..1) == Some("Q") {
-                board.castles |= CastleOptions::WhiteQueenside;
-                castling = &castling[1..];
-            }
-            if castling.get(0..1) == Some("k") {
-                board.castles |= CastleOptions::BlackKingside;
-                castling = &castling[1..];
-            }
-            if castling.get(0..1) == Some("q") {
-                board.castles |= CastleOptions::BlackQueenside;
-            }
-        }
+        board.castles = Variant::castle_state_from_fen(terms.next().expect("Error parsing FEN"));
         {
             let en_passant = terms.next().expect("Error parsing FEN");
             board.en_passant_target = if en_passant == "-" {
@@ -1162,7 +1104,7 @@ impl Board for BitboardRepresentation {
     }
 
     fn initial_state() -> Self {
-        Self::INITIAL_STATE
+        Self::from_fen(Variant::initial_fen())
     }
 
     fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<()> {
