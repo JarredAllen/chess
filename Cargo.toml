@@ -3,7 +3,7 @@
 members = [
     "backend",
     "board",
-    "boards/bitboard",
+    "board/bitboard",
     "games_database",
     "lib/utils",
     "lib/interner",
