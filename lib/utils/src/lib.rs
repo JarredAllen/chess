@@ -46,6 +46,7 @@ impl<T> UnreachableExpect for Option<T> {
     type Target = T;
 
     #[inline(always)]
+    #[cfg_attr(debug_assertions, track_caller)]
     fn expect_unreachable(self, msg: &str) -> Self::Target {
         if ::core::cfg!(debug_assertions) {
             self.expect(msg)
@@ -59,6 +60,7 @@ impl<T, E: core::fmt::Debug> UnreachableExpect for Result<T, E> {
     type Target = T;
 
     #[inline(always)]
+    #[cfg_attr(debug_assertions, track_caller)]
     fn expect_unreachable(self, msg: &str) -> Self::Target {
         if ::core::cfg!(debug_assertions) {
             self.expect(msg)

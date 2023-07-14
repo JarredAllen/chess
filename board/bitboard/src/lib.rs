@@ -316,66 +316,74 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     pub unsafe fn do_move(&mut self, m: DetailedMove) {
         match (m.piece.kind, m.piece.color) {
             (PieceKind::King, Color::White) => {
-                if m.is_capture {
-                    if m.is_castle {
-                        debug_unreachable!("capture and castle together");
-                    }
-                    if let Some(piece) = self.get(m.target) {
-                        *self.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(m.target);
-                    } else {
-                        debug_unreachable!("Capture move without target piece");
-                    }
-                } else if m.is_castle {
+                if m.is_castle {
                     if m.target == BoardSquare::C1 {
                         self.white_rook &= !Bitboard::from_board_square(BoardSquare::A1);
                         self.white_rook |= BoardSquare::D1;
+                        self.castles =
+                            Variant::is_castle_allowed(self.castles, Color::White, false)
+                                .expect_unreachable("Did illegal castle");
                     } else if m.target == BoardSquare::G1 {
                         self.white_rook &= !Bitboard::from_board_square(BoardSquare::H1);
                         self.white_rook |= BoardSquare::F1;
+                        self.castles = Variant::is_castle_allowed(self.castles, Color::White, true)
+                            .expect_unreachable("Did illegal castle");
                     } else {
                         debug_unreachable!("Castle with illegal target");
                     }
+                } else {
+                    if m.is_capture {
+                        if m.is_castle {
+                            debug_unreachable!("capture and castle together");
+                        }
+                        if let Some(piece) = self.get(m.target) {
+                            *self.piece_bitboard_mut(piece) &=
+                                !Bitboard::from_board_square(m.target);
+                        } else {
+                            debug_unreachable!("Capture move without target piece");
+                        }
+                    }
+                    self.castles =
+                        Variant::update_castle_state(self.castles, m.piece, m.source, m.target);
                 }
                 debug_impossible!(m.is_en_passant, "Can't en passant with a king");
                 debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.white_king = m.target;
-                self.castles = Variant::is_castle_allowed(
-                    self.castles,
-                    Color::White,
-                    m.target == BoardSquare::G1,
-                )
-                .expect_unreachable("Did illegal castle");
             }
             (PieceKind::King, Color::Black) => {
-                if m.is_capture {
-                    if m.is_castle {
-                        debug_unreachable!("capture and castle together");
-                    }
-                    if let Some(piece) = self.get(m.target) {
-                        *self.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(m.target);
-                    } else {
-                        debug_unreachable!("Capture move without target piece");
-                    }
-                } else if m.is_castle {
+                if m.is_castle {
                     if m.target == BoardSquare::C8 {
                         self.black_rook &= !Bitboard::from_board_square(BoardSquare::A8);
                         self.black_rook |= BoardSquare::D8;
+                        self.castles =
+                            Variant::is_castle_allowed(self.castles, Color::Black, false)
+                                .expect_unreachable("Did illegal castle");
                     } else if m.target == BoardSquare::G8 {
                         self.black_rook &= !Bitboard::from_board_square(BoardSquare::H8);
                         self.black_rook |= BoardSquare::F8;
+                        self.castles = Variant::is_castle_allowed(self.castles, Color::Black, true)
+                            .expect_unreachable("Did illegal castle");
                     } else {
                         debug_unreachable!("Castle with illegal target");
                     }
+                } else {
+                    if m.is_capture {
+                        if m.is_castle {
+                            debug_unreachable!("capture and castle together");
+                        }
+                        if let Some(piece) = self.get(m.target) {
+                            *self.piece_bitboard_mut(piece) &=
+                                !Bitboard::from_board_square(m.target);
+                        } else {
+                            debug_unreachable!("Capture move without target piece");
+                        }
+                    }
+                    self.castles =
+                        Variant::update_castle_state(self.castles, m.piece, m.source, m.target);
                 }
                 debug_impossible!(m.is_en_passant, "Can't en passant with a king");
                 debug_impossible!(m.promotion_into.is_some(), "Can't promote a king");
                 self.black_king = m.target;
-                self.castles = Variant::is_castle_allowed(
-                    self.castles,
-                    Color::Black,
-                    m.target == BoardSquare::G8,
-                )
-                .expect_unreachable("Did illegal castle");
             }
             _ => {
                 *self.piece_bitboard_mut(m.piece) &=
