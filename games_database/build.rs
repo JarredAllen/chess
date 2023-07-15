@@ -6,10 +6,16 @@ use std::{
 
 fn main() {
     // Download database files and extract them
-    for (file_url, file_path) in [(
-        "https://database.lichess.org/standard/lichess_db_standard_rated_2013-01.pgn.zst",
-        &Path::new("games/lichess_db_standard_rated_2013-01.pgn"),
-    )] {
+    for (file_url, file_path) in [
+        (
+            "https://database.lichess.org/standard/lichess_db_standard_rated_2013-01.pgn.zst",
+            &Path::new("games/lichess_db_standard_rated_2013-01.pgn"),
+        ),
+        (
+            "https://database.lichess.org/chess960/lichess_db_chess960_rated_2013-08.pgn.zst",
+            &Path::new("games/lichess_db_chess960_rated_2013-01.pgn"),
+        ),
+    ] {
         if file_path
             .try_exists()
             .expect("Error querying if file exists")
