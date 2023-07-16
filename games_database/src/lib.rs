@@ -196,7 +196,10 @@ mod tests {
     fn test_lichess_chess960_2013_01_parsing() {
         // Just check that it doesn't panic
         for game in lichess_chess960_jan_2013_database() {
-            assert!(matches!(game.variant, GameVariant::Chess960 { .. }), "{game:#?}");
+            assert!(
+                matches!(game.variant, GameVariant::Chess960 { .. }),
+                "{game:#?}"
+            );
         }
     }
 }
