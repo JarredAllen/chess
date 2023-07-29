@@ -1,9 +1,6 @@
 //! Benchmarking for this player
 
-use std::{
-    hint::black_box,
-    time::{Duration, Instant},
-};
+use std::{hint::black_box, time::Duration};
 
 use bfs_minimax::BfsMinimaxPlayer;
 use players::Player;
@@ -24,9 +21,8 @@ fn position_exploring_benchmark(depth: usize, run_duration: Duration) -> Benchma
     let mut player = BfsMinimaxPlayer::with_depth(depth);
     // Chosen randomly, but fixed for benchmark consistency
     let mut rng = SmallRng::seed_from_u64(2965354380665276332);
-    // TODO Measure CPU usage instead of wall time for extra consistency
-    let start_time = Instant::now();
-    while start_time.elapsed() < run_duration {
+    while player.searching_time < run_duration {
+        // The board setup is not counted towards the searching time
         let board = positions.choose(&mut rng).unwrap();
         player.position(board, &[]);
         black_box(player.make_move());
@@ -40,9 +36,9 @@ fn position_exploring_benchmark(depth: usize, run_duration: Duration) -> Benchma
 #[inline(never)]
 fn main() {
     // Pre-warm the cache
-    position_exploring_benchmark(2, Duration::from_millis(200));
+    position_exploring_benchmark(2, Duration::from_millis(100));
     // Evaluate a real run
-    let result = position_exploring_benchmark(3, Duration::from_secs(20));
+    let result = position_exploring_benchmark(3, Duration::from_secs(10));
     println!(
         "{} positions explored in {}ms",
         result.positions_explored,

@@ -22,6 +22,8 @@ pub struct BfsMinimaxPlayer {
     /// How many positions we've explored (for benchmarking)
     pub positions_explored: usize,
     /// How long we've spent exploring positions (for benchmarking)
+    ///
+    /// TODO Measure CPU usage instead of wall time for extra consistency
     pub searching_time: Duration,
 }
 

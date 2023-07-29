@@ -841,7 +841,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
 
     /// Returns `true` if the given color's King is in checkmate
     fn is_checkmate(&self) -> bool {
-        self.is_check(self.side_to_move) && self.legal_moves().count() == 0
+        self.is_check(self.side_to_move) && self.legal_moves().next().is_none()
     }
 
     /// Returns the list of legal moves for the given player
@@ -1221,7 +1221,7 @@ impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Va
         } else if self.is_checkmate() {
             // Checkmate
             GameOutcome::Won(self.side_to_move.other())
-        } else if self.legal_moves().count() == 0 {
+        } else if self.legal_moves().next().is_none() {
             // Stalemate
             GameOutcome::Draw
         } else {
