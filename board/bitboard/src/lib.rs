@@ -870,7 +870,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                             | Bitboard::containing_rank(source)
                             | Bitboard::containing_file(source)
                     }
-                    (PieceKind::King, _) => Bitboard::king_moves(source),
+                    (PieceKind::King, _) => Bitboard::king_moves_with_castling(source),
                     (PieceKind::Pawn, Color::White) => {
                         let (source_rank, source_file) = source
                             .to_rank_file()

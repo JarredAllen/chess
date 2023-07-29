@@ -21,112 +21,152 @@ macro_rules! bitboard_from_0x88_offsets {
     };
 }
 
+/// Boilerplate reduction for optimization
+///
+/// This macro takes a normal function from a board square to a bitboard and precomputes a fixed
+/// array of all possible inputs and their answers, to optimize.
+///
+/// This also only calls the method for legal board squares, and returns an empty bitboard for an
+/// invalid input.
+macro_rules! method_via_boardsquare_array {
+    ( $(
+        $( #[$meta:meta] )*
+        $vis:vis $(const)? fn $fun_name:ident($square:ident: BoardSquare) -> Self
+            $eval:block
+    )* ) => { $(
+        $(#[$meta])*
+        $vis const fn $fun_name(square: BoardSquare) -> Self {
+            /// Cache containing the answers
+            const VALUES: [Bitboard; 256] = {
+                let mut values = [Bitboard::empty(); 256];
+                let mut idx: usize = 0;
+                while idx < 256 {
+                    if idx & 0x88 == 0 {
+                        let $square = BoardSquare(idx as u8);
+                        let bitboard = $eval;
+                        values[idx] = bitboard;
+                    }
+                    idx += 1;
+                }
+                values
+            };
+            VALUES[square.0 as usize]
+        }
+    )* };
+}
+
 impl Bitboard {
     /// Create an empty bitboard
     pub const fn empty() -> Self {
         Self(0)
     }
 
-    /// Produce a bitboard from the given board square.
-    ///
-    /// If the board square is invalid, this return the empty bitboard.
-    pub const fn from_board_square(square: BoardSquare) -> Self {
-        if square.is_valid() {
-            Self(1u64 << ((((square.0 & 0x70) >> 1) | (square.0 & 0x07)) as u64))
-        } else {
-            Self::empty()
+    method_via_boardsquare_array! {
+        /// Produce a bitboard from the given board square.
+        ///
+        /// If the board square is invalid, this return the empty bitboard.
+        pub const fn from_board_square(square: BoardSquare) -> Self {
+            Bitboard(1u64 << ((((square.0 & 0x70) >> 1) | (square.0 & 0x07)) as u64))
         }
-    }
 
-    /// Gets a bitboard for the rank containing the given square
-    pub const fn containing_rank(square: BoardSquare) -> Self {
-        if square.is_valid() {
+        /// Gets a bitboard for the rank containing the given square
+        pub const fn containing_rank(square: BoardSquare) -> Self {
             let base = 1u64 << (((square.0 & 0x70) >> 1) as u64);
             Self(base * 0xFF)
-        } else {
-            Self::empty()
         }
-    }
 
-    /// Gets the diagonals containing the given square
-    pub const fn containing_diagonals(square: BoardSquare) -> Self {
-        let Some((rank, file)) = square.to_rank_file() else { return Self::empty(); };
-        let forward_diag = match (rank as i8) - (file as i8) {
-            -7 => bitboard_from_0x88_offsets!(0x07),
-            -6 => bitboard_from_0x88_offsets!(0x06, 0x17),
-            -5 => bitboard_from_0x88_offsets!(0x05, 0x16, 0x27),
-            -4 => bitboard_from_0x88_offsets!(0x04, 0x15, 0x26, 0x37),
-            -3 => bitboard_from_0x88_offsets!(0x03, 0x14, 0x25, 0x36, 0x47),
-            -2 => bitboard_from_0x88_offsets!(0x02, 0x13, 0x24, 0x35, 0x46, 0x57),
-            -1 => bitboard_from_0x88_offsets!(0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67),
-            0 => bitboard_from_0x88_offsets!(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77),
-            1 => bitboard_from_0x88_offsets!(0x10, 0x21, 0x32, 0x43, 0x54, 0x65, 0x76),
-            2 => bitboard_from_0x88_offsets!(0x20, 0x31, 0x42, 0x53, 0x64, 0x75),
-            3 => bitboard_from_0x88_offsets!(0x30, 0x41, 0x52, 0x63, 0x74),
-            4 => bitboard_from_0x88_offsets!(0x40, 0x51, 0x62, 0x73),
-            5 => bitboard_from_0x88_offsets!(0x50, 0x61, 0x72),
-            6 => bitboard_from_0x88_offsets!(0x60, 0x71),
-            7 => bitboard_from_0x88_offsets!(0x70),
-            _ => debug_unreachable!(),
-        };
-        let backward_diag = match rank + file {
-            0 => bitboard_from_0x88_offsets!(0x00),
-            1 => bitboard_from_0x88_offsets!(0x10, 0x01),
-            2 => bitboard_from_0x88_offsets!(0x20, 0x11, 0x02),
-            3 => bitboard_from_0x88_offsets!(0x30, 0x21, 0x12, 0x03),
-            4 => bitboard_from_0x88_offsets!(0x40, 0x31, 0x22, 0x13, 0x04),
-            5 => bitboard_from_0x88_offsets!(0x50, 0x41, 0x32, 0x23, 0x14, 0x05),
-            6 => bitboard_from_0x88_offsets!(0x60, 0x51, 0x42, 0x33, 0x24, 0x15, 0x06),
-            7 => bitboard_from_0x88_offsets!(0x70, 0x61, 0x52, 0x43, 0x34, 0x25, 0x16, 0x07),
-            8 => bitboard_from_0x88_offsets!(0x71, 0x62, 0x53, 0x44, 0x35, 0x26, 0x17),
-            9 => bitboard_from_0x88_offsets!(0x72, 0x63, 0x54, 0x45, 0x36, 0x27),
-            10 => bitboard_from_0x88_offsets!(0x73, 0x64, 0x55, 0x46, 0x37),
-            11 => bitboard_from_0x88_offsets!(0x74, 0x65, 0x56, 0x47),
-            12 => bitboard_from_0x88_offsets!(0x75, 0x66, 0x57),
-            13 => bitboard_from_0x88_offsets!(0x76, 0x67),
-            14 => bitboard_from_0x88_offsets!(0x77),
-            _ => debug_unreachable!(),
-        };
-        Bitboard::union(forward_diag, backward_diag)
-    }
+        /// Gets the diagonals containing the given square
+        pub const fn containing_diagonals(square: BoardSquare) -> Self {
+            let rank = (square.0 & 0x70) >> 4;
+            let file = square.0 & 0x07;
+            let forward_diag = match (rank as i8) - (file as i8) {
+                -7 => bitboard_from_0x88_offsets!(0x07),
+                -6 => bitboard_from_0x88_offsets!(0x06, 0x17),
+                -5 => bitboard_from_0x88_offsets!(0x05, 0x16, 0x27),
+                -4 => bitboard_from_0x88_offsets!(0x04, 0x15, 0x26, 0x37),
+                -3 => bitboard_from_0x88_offsets!(0x03, 0x14, 0x25, 0x36, 0x47),
+                -2 => bitboard_from_0x88_offsets!(0x02, 0x13, 0x24, 0x35, 0x46, 0x57),
+                -1 => bitboard_from_0x88_offsets!(0x01, 0x12, 0x23, 0x34, 0x45, 0x56, 0x67),
+                0 => bitboard_from_0x88_offsets!(0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77),
+                1 => bitboard_from_0x88_offsets!(0x10, 0x21, 0x32, 0x43, 0x54, 0x65, 0x76),
+                2 => bitboard_from_0x88_offsets!(0x20, 0x31, 0x42, 0x53, 0x64, 0x75),
+                3 => bitboard_from_0x88_offsets!(0x30, 0x41, 0x52, 0x63, 0x74),
+                4 => bitboard_from_0x88_offsets!(0x40, 0x51, 0x62, 0x73),
+                5 => bitboard_from_0x88_offsets!(0x50, 0x61, 0x72),
+                6 => bitboard_from_0x88_offsets!(0x60, 0x71),
+                7 => bitboard_from_0x88_offsets!(0x70),
+                _ => debug_unreachable!(),
+            };
+            let backward_diag = match rank + file {
+                0 => bitboard_from_0x88_offsets!(0x00),
+                1 => bitboard_from_0x88_offsets!(0x10, 0x01),
+                2 => bitboard_from_0x88_offsets!(0x20, 0x11, 0x02),
+                3 => bitboard_from_0x88_offsets!(0x30, 0x21, 0x12, 0x03),
+                4 => bitboard_from_0x88_offsets!(0x40, 0x31, 0x22, 0x13, 0x04),
+                5 => bitboard_from_0x88_offsets!(0x50, 0x41, 0x32, 0x23, 0x14, 0x05),
+                6 => bitboard_from_0x88_offsets!(0x60, 0x51, 0x42, 0x33, 0x24, 0x15, 0x06),
+                7 => bitboard_from_0x88_offsets!(0x70, 0x61, 0x52, 0x43, 0x34, 0x25, 0x16, 0x07),
+                8 => bitboard_from_0x88_offsets!(0x71, 0x62, 0x53, 0x44, 0x35, 0x26, 0x17),
+                9 => bitboard_from_0x88_offsets!(0x72, 0x63, 0x54, 0x45, 0x36, 0x27),
+                10 => bitboard_from_0x88_offsets!(0x73, 0x64, 0x55, 0x46, 0x37),
+                11 => bitboard_from_0x88_offsets!(0x74, 0x65, 0x56, 0x47),
+                12 => bitboard_from_0x88_offsets!(0x75, 0x66, 0x57),
+                13 => bitboard_from_0x88_offsets!(0x76, 0x67),
+                14 => bitboard_from_0x88_offsets!(0x77),
+                _ => debug_unreachable!(),
+            };
+            Bitboard::union(forward_diag, backward_diag)
+        }
 
-    /// Gets a bitboard for the rank containing the given square
-    pub const fn containing_file(square: BoardSquare) -> Self {
-        if square.is_valid() {
+        /// Gets a bitboard for the rank containing the given square
+        pub const fn containing_file(square: BoardSquare) -> Self {
             let base = 1u64 << ((square.0 & 0x07) as u64);
             Self(base * 0x01010101_01010101)
-        } else {
-            Self::empty()
         }
-    }
 
-    /// Get all the squares that are a king move away
-    ///
-    /// This includes castling
-    pub const fn king_moves(square: BoardSquare) -> Self {
-        Self::from_board_square(square.offset(1, 1))
-            .union(Self::from_board_square(square.offset(1, 0)))
-            .union(Self::from_board_square(square.offset(1, -1)))
-            .union(Self::from_board_square(square.offset(0, 1)))
-            .union(Self::from_board_square(square.offset(0, 0)))
-            .union(Self::from_board_square(square.offset(0, -1)))
-            .union(Self::from_board_square(square.offset(-1, 1)))
-            .union(Self::from_board_square(square.offset(-1, 0)))
-            .union(Self::from_board_square(square.offset(-1, -1)))
-            .union(Self::from_board_square(square.offset(0, 2)))
-            .union(Self::from_board_square(square.offset(0, -2)))
-    }
+        /// Get all the squares that are a king move away
+        ///
+        /// This only includes normal king moves, not castling.
+        pub const fn king_moves(square: BoardSquare) -> Self {
+            Bitboard::from_board_square(square.offset(1, 1))
+                .union(Bitboard::from_board_square(square.offset(1, 0)))
+                .union(Bitboard::from_board_square(square.offset(1, -1)))
+                .union(Bitboard::from_board_square(square.offset(0, 1)))
+                .union(Bitboard::from_board_square(square.offset(0, 0)))
+                .union(Bitboard::from_board_square(square.offset(0, -1)))
+                .union(Bitboard::from_board_square(square.offset(-1, 1)))
+                .union(Bitboard::from_board_square(square.offset(-1, 0)))
+                .union(Bitboard::from_board_square(square.offset(-1, -1)))
+        }
 
-    /// Get all the squares that are a knight move away
-    pub const fn knight_moves(square: BoardSquare) -> Self {
-        Self::from_board_square(square.offset(2, 1))
-            .union(Self::from_board_square(square.offset(2, -1)))
-            .union(Self::from_board_square(square.offset(-2, 1)))
-            .union(Self::from_board_square(square.offset(-2, -1)))
-            .union(Self::from_board_square(square.offset(1, 2)))
-            .union(Self::from_board_square(square.offset(1, -2)))
-            .union(Self::from_board_square(square.offset(-1, 2)))
-            .union(Self::from_board_square(square.offset(-1, -2)))
+        /// Get all the squares that are a king move away
+        ///
+        /// This includes castling
+        pub const fn king_moves_with_castling(square: BoardSquare) -> Self {
+            Bitboard::from_board_square(square.offset(1, 1))
+                .union(Bitboard::from_board_square(square.offset(1, 0)))
+                .union(Bitboard::from_board_square(square.offset(1, -1)))
+                .union(Bitboard::from_board_square(square.offset(0, 1)))
+                .union(Bitboard::from_board_square(square.offset(0, 0)))
+                .union(Bitboard::from_board_square(square.offset(0, -1)))
+                .union(Bitboard::from_board_square(square.offset(-1, 1)))
+                .union(Bitboard::from_board_square(square.offset(-1, 0)))
+                .union(Bitboard::from_board_square(square.offset(-1, -1)))
+                .union(Bitboard::from_board_square(square.offset(0, 2)))
+                .union(Bitboard::from_board_square(square.offset(0, -2)))
+        }
+
+        /// Get all the squares that are a knight move away
+        pub const fn knight_moves(square: BoardSquare) -> Self {
+            Bitboard::from_board_square(square.offset(2, 1))
+                .union(Bitboard::from_board_square(square.offset(2, -1)))
+                .union(Bitboard::from_board_square(square.offset(-2, 1)))
+                .union(Bitboard::from_board_square(square.offset(-2, -1)))
+                .union(Bitboard::from_board_square(square.offset(1, 2)))
+                .union(Bitboard::from_board_square(square.offset(1, -2)))
+                .union(Bitboard::from_board_square(square.offset(-1, 2)))
+                .union(Bitboard::from_board_square(square.offset(-1, -2)))
+        }
     }
 
     /// Gets the bitboard representing the "middle" of a rook move.
@@ -199,26 +239,12 @@ impl Bitboard {
         match (piece.kind, piece.color) {
             (PieceKind::King, _) => self
                 .squares_iter()
-                .flat_map(|sq| {
-                    BoardSquareOffset::KING_MOVES
-                        .into_iter()
-                        .map(move |offset| offset.offset(sq))
-                })
-                .filter(|sq| sq.is_valid())
-                .fold(Self::empty(), |board, square| {
-                    board.union(Bitboard::from_board_square(square))
-                }),
+                .map(Self::king_moves)
+                .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Knight, _) => self
                 .squares_iter()
-                .flat_map(|sq| {
-                    BoardSquareOffset::KNIGHT_MOVES
-                        .into_iter()
-                        .map(move |offset| offset.offset(sq))
-                })
-                .filter(|sq| sq.is_valid())
-                .fold(Self::empty(), |board, square| {
-                    board.union(Bitboard::from_board_square(square))
-                }),
+                .map(Self::knight_moves)
+                .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Pawn, Color::White) => self
                 .squares_iter()
                 .flat_map(|sq| {
