@@ -223,7 +223,20 @@ pub trait Board: Sized {
 }
 
 #[derive(Debug)]
-pub struct AlgebraicNotationMoveParseError;
+pub enum AlgebraicNotationMoveParseError {
+    /// An invalid square on the board was provided.
+    InvalidSquare,
+    /// Excess data was left after parsing everything we can
+    ExcessData,
+}
+impl fmt::Display for AlgebraicNotationMoveParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::InvalidSquare => "An invalid square on the board was provided",
+            Self::ExcessData => "Excess text that wasn't parsed as algebraic notation was detected",
+        })
+    }
+}
 
 /// The data parsed out from a move in algebraic notation
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -376,7 +389,7 @@ impl FromStr for AlgebraicNotationNormalMove {
             _ => None,
         };
         let to_square = BoardSquare::from_str(&s[s.len() - 2..])
-            .map_err(|_| AlgebraicNotationMoveParseError)?;
+            .map_err(|_| AlgebraicNotationMoveParseError::InvalidSquare)?;
         s = &s[..s.len() - 2];
         let from_file = match s.chars().next() {
             Some(c @ ('a'..='h')) => {
@@ -400,7 +413,9 @@ impl FromStr for AlgebraicNotationNormalMove {
         } else {
             false
         };
-        debug_assert!(s.is_empty(), "{}", s);
+        if !s.is_empty() {
+            return Err(AlgebraicNotationMoveParseError::ExcessData);
+        }
         Ok(Self {
             kind,
             from_file,
