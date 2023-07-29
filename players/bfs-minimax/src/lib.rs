@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use bitboard::{BitboardRepresentation, DetailedMove};
 use board::{Board, BoardSquare, Color, LongAlgebraicNotationMove, PieceKind};
+use utils::UnreachableExpect;
 
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
@@ -50,7 +51,14 @@ impl players::Player for BfsMinimaxPlayer {
     fn make_move(&mut self) -> LongAlgebraicNotationMove {
         let start = std::time::Instant::now();
         let mut positions_explored = 0;
-        let (mv, _eval) = evaluate_position(&self.board, &mut self.rng, 2, &mut positions_explored);
+        let (mv, _eval) = evaluate_position(
+            &self.board,
+            &mut self.rng,
+            3,
+            PositionEvaluation::MIN,
+            PositionEvaluation::MAX,
+            &mut positions_explored,
+        );
         let elapsed = start.elapsed();
         self.positions_explored += positions_explored;
         self.searching_time += elapsed;
@@ -72,58 +80,154 @@ impl Default for BfsMinimaxPlayer {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum PositionEvaluation {
+    CheckmatedCounter(u16),
+    // This may never be NaN
+    Evaluation(f32),
+    CheckmateCounter(u16),
+    Draw,
+}
+impl PositionEvaluation {
+    /// The worst possible evaluation
+    pub const MIN: Self = Self::CheckmatedCounter(0);
+    /// The best possible evaluation
+    pub const MAX: Self = Self::CheckmateCounter(0);
+}
+impl PartialEq for PositionEvaluation {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+impl Eq for PositionEvaluation {}
+impl PartialOrd for PositionEvaluation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for PositionEvaluation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (self, other) {
+            // Counting down until we get checkmated is the worst position
+            (Self::CheckmatedCounter(n), Self::CheckmatedCounter(m)) => n.cmp(m),
+            (Self::CheckmatedCounter(_), _) => Ordering::Less,
+            (_, Self::CheckmatedCounter(_)) => Ordering::Greater,
+            // Next up is evaluation or Draw (equal to 0.0 evaluation)
+            (Self::Evaluation(n), Self::Evaluation(m)) => {
+                n.partial_cmp(m).expect_unreachable("NaN evaluation")
+            }
+            (Self::Evaluation(n), Self::Draw) => {
+                n.partial_cmp(&0.0).expect_unreachable("NaN evaluation")
+            }
+            (Self::Draw, Self::Evaluation(m)) => {
+                0.0.partial_cmp(m).expect_unreachable("NaN evaluation")
+            }
+            (Self::Draw, Self::Draw) => Ordering::Equal,
+            // Above all else is counting down until we checkmate
+            (Self::CheckmateCounter(n), Self::CheckmateCounter(m)) => n.cmp(m).reverse(),
+            (Self::CheckmateCounter(_), _) => Ordering::Greater,
+            (_, Self::CheckmateCounter(_)) => Ordering::Less,
+        }
+    }
+}
+impl From<PositionEvaluation> for f32 {
+    fn from(value: PositionEvaluation) -> Self {
+        match value {
+            PositionEvaluation::CheckmatedCounter(_) => f32::MIN,
+            PositionEvaluation::Evaluation(eval) => eval,
+            PositionEvaluation::Draw => 0.0,
+            PositionEvaluation::CheckmateCounter(_) => f32::MAX,
+        }
+    }
+}
+/// Unary negation also increments move counters by one
+impl std::ops::Neg for PositionEvaluation {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        match self {
+            PositionEvaluation::CheckmatedCounter(n) => PositionEvaluation::CheckmateCounter(n + 1),
+            PositionEvaluation::Evaluation(n) => PositionEvaluation::Evaluation(-n),
+            PositionEvaluation::Draw => PositionEvaluation::Draw,
+            PositionEvaluation::CheckmateCounter(n) => PositionEvaluation::CheckmatedCounter(n + 1),
+        }
+    }
+}
+
 /// Evaluate the given position and return our evaluation and the best move to make
 fn evaluate_position(
     position: &BitboardRepresentation,
     rng: &mut impl Rng,
     depth: usize,
+    mut alpha: PositionEvaluation,
+    beta: PositionEvaluation,
     positions_explored: &mut usize,
-) -> (DetailedMove, f32) {
-    let (mv, eval) = position
-        .legal_moves()
-        .fold((None, f32::NAN), |(best_move, best_eval), mv| {
-            *positions_explored += 1;
-            let mut post_move = position.clone();
-            // SAFETY: This move has been chosen to be legal
-            unsafe {
-                post_move.do_move(mv);
-            }
-            let eval = match post_move.game_outcome() {
-                board::GameOutcome::InProgress => {
-                    if depth == 0 {
-                        evaluate_board_no_lookahead(&post_move, position.side_to_move)
-                    } else {
-                        let (_opp_mv, opp_eval) =
-                            evaluate_position(&post_move, rng, depth - 1, positions_explored);
-                        -opp_eval
-                    }
-                }
-                // The game is drawn here
-                board::GameOutcome::Draw => 0.0,
-                // This can only happen if this move puts the opponent in checkmate
-                board::GameOutcome::Won(_) => f32::MAX,
-            };
-            match eval.partial_cmp(&best_eval) {
-                Some(std::cmp::Ordering::Less) => (best_move, best_eval),
-                Some(std::cmp::Ordering::Equal) => {
-                    if rng.gen_bool(0.5) {
-                        (best_move, best_eval)
-                    } else {
-                        (Some(mv), eval)
-                    }
-                }
-                Some(std::cmp::Ordering::Greater) => (Some(mv), eval),
-                None => {
-                    debug_assert!(best_move.is_none());
-                    (Some(mv), eval)
+) -> (DetailedMove, PositionEvaluation) {
+    let mut best_move = None;
+    let mut best_eval = None;
+    for mv in position.legal_moves() {
+        *positions_explored += 1;
+        let mut post_move = position.clone();
+        // SAFETY: This move has been chosen to be legal
+        unsafe {
+            post_move.do_move(mv);
+        }
+        let eval = match post_move.game_outcome() {
+            board::GameOutcome::InProgress => {
+                if depth == 0 {
+                    evaluate_board_no_lookahead(&post_move, position.side_to_move)
+                } else {
+                    let (_opp_mv, opp_eval) = evaluate_position(
+                        &post_move,
+                        rng,
+                        depth - 1,
+                        -beta,
+                        -alpha,
+                        positions_explored,
+                    );
+                    -opp_eval
                 }
             }
-        });
-    (mv.expect("No legal moves from position"), eval)
+            // The game is drawn here
+            board::GameOutcome::Draw => PositionEvaluation::Draw,
+            // This can only happen if this move puts the opponent in checkmate
+            board::GameOutcome::Won(_) => PositionEvaluation::CheckmateCounter(1),
+        };
+        match best_eval.map(|best_eval| eval.cmp(&best_eval)) {
+            Some(std::cmp::Ordering::Less) => {}
+            Some(std::cmp::Ordering::Equal) => {
+                if rng.gen_bool(0.5) {
+                    best_move = Some(mv);
+                    best_eval = Some(eval);
+                }
+            }
+            Some(std::cmp::Ordering::Greater) => {
+                best_move = Some(mv);
+                best_eval = Some(eval);
+            }
+            None => {
+                debug_assert!(best_move.is_none());
+                best_move = Some(mv);
+                best_eval = Some(eval);
+            }
+        }
+        if best_eval.is_some_and(|best_eval| best_eval > beta) {
+            return (
+                best_move.expect("No legal moves from position"),
+                best_eval.expect_unreachable("No legal moves from position"),
+            );
+        }
+        alpha = alpha.max(best_eval.expect_unreachable("No legal moves from position"));
+    }
+    (
+        best_move.expect("No legal moves from position"),
+        best_eval.expect_unreachable("No legal moves from position"),
+    )
 }
 
-fn evaluate_board_no_lookahead(board: &BitboardRepresentation, color: Color) -> f32 {
-    BoardSquare::all_squares()
+fn evaluate_board_no_lookahead(board: &BitboardRepresentation, color: Color) -> PositionEvaluation {
+    let evaluation = BoardSquare::all_squares()
         .map(|square| {
             let Some(piece) = board.get(square) else { return 0.0; };
             let piece_value = match piece.kind {
@@ -140,5 +244,6 @@ fn evaluate_board_no_lookahead(board: &BitboardRepresentation, color: Color) -> 
                 -piece_value
             }
         })
-        .sum()
+        .sum();
+    PositionEvaluation::Evaluation(evaluation)
 }

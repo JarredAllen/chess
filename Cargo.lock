@@ -43,6 +43,7 @@ dependencies = [
  "board",
  "players",
  "rand",
+ "utils",
 ]
 
 [[package]]
