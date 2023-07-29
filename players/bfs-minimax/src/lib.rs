@@ -166,6 +166,7 @@ fn evaluate_position(
 ) -> (DetailedMove, PositionEvaluation) {
     let mut best_move = None;
     let mut best_eval = None;
+    let mut num_tied_moves = 0;
     for mv in position.legal_moves() {
         *positions_explored += 1;
         let mut post_move = position.clone();
@@ -197,17 +198,20 @@ fn evaluate_position(
         match best_eval.map(|best_eval| eval.cmp(&best_eval)) {
             Some(std::cmp::Ordering::Less) => {}
             Some(std::cmp::Ordering::Equal) => {
-                if rng.gen_bool(0.5) {
+                num_tied_moves += 1;
+                if rng.gen_bool(1. / (num_tied_moves as f64)) {
                     best_move = Some(mv);
                     best_eval = Some(eval);
                 }
             }
             Some(std::cmp::Ordering::Greater) => {
+                num_tied_moves = 1;
                 best_move = Some(mv);
                 best_eval = Some(eval);
             }
             None => {
                 debug_assert!(best_move.is_none());
+                num_tied_moves = 1;
                 best_move = Some(mv);
                 best_eval = Some(eval);
             }
