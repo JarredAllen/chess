@@ -8,6 +8,14 @@ edition = "2021"
 [dependencies]
 bitboard.path = "../../board/bitboard"
 board.path = "../../board"
+games_database = { path = "../../games_database", optional = true }
 players.path = ".."
 rand = { workspace = true, features = ["small_rng"] }
 utils.path = "../../lib/utils"
+
+[features]
+benchmark = ["dep:games_database"]
+
+[[bin]]
+name = "benchmarking"
+required-features = ["benchmark"]

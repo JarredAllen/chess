@@ -41,6 +41,7 @@ version = "0.1.0"
 dependencies = [
  "bitboard",
  "board",
+ "games_database",
  "players",
  "rand",
  "utils",

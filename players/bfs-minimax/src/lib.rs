@@ -14,18 +14,27 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 #[derive(Debug)]
 pub struct BfsMinimaxPlayer {
     /// The state of the board
-    board: BitboardRepresentation,
+    pub board: BitboardRepresentation,
+    /// The depth of tree to explore
+    pub depth: usize,
     /// How we decide what to do
     rng: SmallRng,
-    positions_explored: usize,
-    searching_time: Duration,
+    /// How many positions we've explored (for benchmarking)
+    pub positions_explored: usize,
+    /// How long we've spent exploring positions (for benchmarking)
+    pub searching_time: Duration,
 }
 
 impl BfsMinimaxPlayer {
-    /// Create a new player with the initial board state.
+    /// Create a new player with the initial board state
     pub fn new() -> Self {
+        Self::with_depth(3)
+    }
+    /// Create a new player with the initial board state, to explore to the given depth
+    pub fn with_depth(depth: usize) -> Self {
         Self {
             board: BitboardRepresentation::INITIAL_STATE,
+            depth,
             rng: SmallRng::from_entropy(),
             positions_explored: 0,
             searching_time: Duration::ZERO,
@@ -54,7 +63,7 @@ impl players::Player for BfsMinimaxPlayer {
         let (mv, _eval) = evaluate_position(
             &self.board,
             &mut self.rng,
-            3,
+            self.depth,
             PositionEvaluation::MIN,
             PositionEvaluation::MAX,
             &mut positions_explored,
