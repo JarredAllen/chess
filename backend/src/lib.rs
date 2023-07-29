@@ -44,6 +44,7 @@ impl<White: Player, Black: Player> Backend<White, Black> {
                     .expect("Illegal move"),
             ),
         );
+        eprintln!("Player {:?} made move {mv}", self.gamestate.side_to_move);
         self.gamestate
             .make_long_move(mv)
             .expect("Illegal move provided");
