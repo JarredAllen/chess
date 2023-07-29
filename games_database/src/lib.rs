@@ -54,6 +54,12 @@ const LICHESS_CHESS960_JAN_2013_DATABASE: &str =
 const LICHESS_JAN_2013_DATABASE: &str =
     include_str!("../games/lichess_db_standard_rated_2013-01.pgn");
 
+/// A random selection of positions from [`LICHESS_JAN_2013_DATABASE`]
+///
+/// Data was obtained from <https://database.lichess.org/>, and is licensed under the CC0 license.
+const LICHESS_JAN_2013_POSITIONS: &str =
+    include_str!("../positions/lichess_jan_2013_positions.txt");
+
 /// A string interner for FEN strings
 ///
 /// There may be a lot of them, but they'll come from Chess960, which only generates 960 different
@@ -94,6 +100,40 @@ pub fn lichess_jan_2013_database() -> &'static [GameEntry] {
                 .expect("Failed to parse file contents as games")
                 .into_boxed_slice(),
         )
+    })
+}
+
+/// Output board positions chosen randomly from [`lichess_jan_2013_database`]
+///
+/// The RNG is seeded such that the same value for `desired_count` should result in the same moves
+/// output, for benchmarking purposes.
+///
+/// ```
+/// use games_database::lichess_jan_2013_positions_sample;
+/// assert_eq!(
+///     lichess_jan_2013_positions_sample(250).count(),
+///     250
+/// );
+/// ```
+pub fn lichess_jan_2013_positions_sample(desired_count: u32) -> impl Iterator<Item = &'static str> {
+    use rand::{rngs::SmallRng, Rng, SeedableRng};
+    let mut remaining_positions = LICHESS_JAN_2013_POSITIONS.matches('\n').count() as u32 + 1;
+    if remaining_positions < desired_count {
+        panic!("Requested too many positions, we only have {remaining_positions}");
+    }
+    let mut remaining_choose = desired_count;
+    // Seed chosen randomly, but consistent so benchmarks work the same
+    let mut rng = SmallRng::seed_from_u64(2630238673012584694);
+    // Pick at random, nudging probabilities so we'll get the exact requested number
+    LICHESS_JAN_2013_POSITIONS.split('\n').filter(move |_| {
+        if rng.gen_ratio(remaining_choose, remaining_positions) {
+            remaining_positions -= 1;
+            remaining_choose -= 1;
+            true
+        } else {
+            remaining_positions -= 1;
+            false
+        }
     })
 }
 

@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 board = { version = "0.1.0", path = "../board" }
+bitboard.path = "../board/bitboard"
 interner = { version = "0.1.0", path = "../lib/interner" }
+rand = { workspace = true, features = ["small_rng"] }
 
 [build-dependencies]
 ureq.workspace = true

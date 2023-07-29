@@ -133,8 +133,10 @@ dependencies = [
 name = "games_database"
 version = "0.1.0"
 dependencies = [
+ "bitboard",
  "board",
  "interner",
+ "rand",
  "ureq",
  "zstd",
 ]
