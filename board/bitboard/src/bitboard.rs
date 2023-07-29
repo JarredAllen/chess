@@ -100,6 +100,23 @@ impl Bitboard {
         }
     }
 
+    /// Get all the squares that are a king move away
+    ///
+    /// This includes castling
+    pub const fn king_moves(square: BoardSquare) -> Self {
+        Self::from_board_square(square.offset(1, 1))
+            .union(Self::from_board_square(square.offset(1, 0)))
+            .union(Self::from_board_square(square.offset(1, -1)))
+            .union(Self::from_board_square(square.offset(0, 1)))
+            .union(Self::from_board_square(square.offset(0, 0)))
+            .union(Self::from_board_square(square.offset(0, -1)))
+            .union(Self::from_board_square(square.offset(-1, 1)))
+            .union(Self::from_board_square(square.offset(-1, 0)))
+            .union(Self::from_board_square(square.offset(-1, -1)))
+            .union(Self::from_board_square(square.offset(0, 2)))
+            .union(Self::from_board_square(square.offset(0, -2)))
+    }
+
     /// Get all the squares that are a knight move away
     pub const fn knight_moves(square: BoardSquare) -> Self {
         Self::from_board_square(square.offset(2, 1))

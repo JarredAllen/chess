@@ -1,5 +1,7 @@
 //! A player which makes purely random moves
 
+use std::time::Duration;
+
 use bitboard::{BitboardRepresentation, DetailedMove};
 use board::{Board, BoardSquare, Color, LongAlgebraicNotationMove, PieceKind};
 
@@ -14,6 +16,8 @@ pub struct BfsMinimaxPlayer {
     board: BitboardRepresentation,
     /// How we decide what to do
     rng: SmallRng,
+    positions_explored: usize,
+    searching_time: Duration,
 }
 
 impl BfsMinimaxPlayer {
@@ -22,6 +26,8 @@ impl BfsMinimaxPlayer {
         Self {
             board: BitboardRepresentation::INITIAL_STATE,
             rng: SmallRng::from_entropy(),
+            positions_explored: 0,
+            searching_time: Duration::ZERO,
         }
     }
 }
@@ -45,9 +51,14 @@ impl players::Player for BfsMinimaxPlayer {
         let start = std::time::Instant::now();
         let mut positions_explored = 0;
         let (mv, _eval) = evaluate_position(&self.board, &mut self.rng, 2, &mut positions_explored);
+        let elapsed = start.elapsed();
+        self.positions_explored += positions_explored;
+        self.searching_time += elapsed;
         println!(
-            "Evaluated {positions_explored} in {}ms",
-            start.elapsed().as_millis()
+            "Evaluated {positions_explored} positions in {}ms (total {} in {}ms)",
+            elapsed.as_millis(),
+            self.positions_explored,
+            self.searching_time.as_millis(),
         );
         // SAFETY: This move was produced to be legal
         unsafe { self.board.do_move(mv) };

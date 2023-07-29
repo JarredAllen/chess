@@ -859,8 +859,76 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
             .squares_iter()
             .flat_map(move |source| {
                 let piece = self.get(source).expect_unreachable("Empty source piece");
-                BoardSquare::all_squares().map(move |target| {
-                    let is_en_passant = target == self.en_passant_target;
+                let possible_targets = match (piece.kind, piece.color) {
+                    (PieceKind::Rook, _) => {
+                        Bitboard::containing_rank(source) | Bitboard::containing_file(source)
+                    }
+                    (PieceKind::Knight, _) => Bitboard::knight_moves(source),
+                    (PieceKind::Bishop, _) => Bitboard::containing_diagonals(source),
+                    (PieceKind::Queen, _) => {
+                        Bitboard::containing_diagonals(source)
+                            | Bitboard::containing_rank(source)
+                            | Bitboard::containing_file(source)
+                    }
+                    (PieceKind::King, _) => Bitboard::king_moves(source),
+                    (PieceKind::Pawn, Color::White) => {
+                        let (source_rank, source_file) = source
+                            .to_rank_file()
+                            .expect_unreachable("Invalid source square");
+                        let normal = Bitboard::from_board_square(BoardSquare::from_rank_file(
+                            source_rank + 1,
+                            source_file,
+                        ));
+                        let with_captures = normal
+                            | (Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                source_rank + 1,
+                                source_file.wrapping_sub(1),
+                            )) | Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                source_rank + 1,
+                                source_file + 1,
+                            ))) & (enemy_pieces
+                                | Bitboard::from_board_square(self.en_passant_target));
+                        if source_rank == 1 {
+                            with_captures
+                                | Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                    3,
+                                    source_file,
+                                ))
+                        } else {
+                            with_captures
+                        }
+                    }
+                    (PieceKind::Pawn, Color::Black) => {
+                        let (source_rank, source_file) = source
+                            .to_rank_file()
+                            .expect_unreachable("Invalid source square");
+                        let normal = Bitboard::from_board_square(BoardSquare::from_rank_file(
+                            source_rank - 1,
+                            source_file,
+                        ));
+                        let with_captures = normal
+                            | (Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                source_rank - 1,
+                                source_file.wrapping_sub(1),
+                            )) | Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                source_rank - 1,
+                                source_file + 1,
+                            ))) & (enemy_pieces
+                                | Bitboard::from_board_square(self.en_passant_target));
+                        if source_rank == 6 {
+                            with_captures
+                                | Bitboard::from_board_square(BoardSquare::from_rank_file(
+                                    4,
+                                    source_file,
+                                ))
+                        } else {
+                            with_captures
+                        }
+                    }
+                };
+                possible_targets.squares_iter().map(move |target| {
+                    let is_en_passant =
+                        target == self.en_passant_target && piece.kind == PieceKind::Pawn;
                     DetailedMove {
                         piece,
                         source,
@@ -876,15 +944,25 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
             })
             .flat_map(move |mv| {
                 // Add all the options for promoting a pawn
-                [
-                    None,
-                    Some(PieceKind::Rook),
-                    Some(PieceKind::Knight),
-                    Some(PieceKind::Knight),
-                    Some(PieceKind::Queen),
-                ]
-                .into_iter()
-                .map(move |promotion| {
+                let (target_rank, _) = mv
+                    .target
+                    .to_rank_file()
+                    .expect_unreachable("Made move with invalid target");
+                if mv.piece.kind == PieceKind::Pawn
+                    && (mv.piece.color == Color::White && target_rank == 7
+                        || mv.piece.color == Color::Black && target_rank == 0)
+                {
+                    &[
+                        Some(PieceKind::Rook),
+                        Some(PieceKind::Knight),
+                        Some(PieceKind::Knight),
+                        Some(PieceKind::Queen),
+                    ][..]
+                } else {
+                    &[None][..]
+                }
+                .iter()
+                .map(move |&promotion| {
                     let mut promoting = mv;
                     promoting.promotion_into = promotion;
                     promoting
