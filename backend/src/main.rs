@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 
 use backend::Backend;
+use bfs_minimax::BfsMinimaxPlayer;
 use board::{Board, Color, GameOutcome};
 use monke::MonkePlayer;
 use terminal_ui::TerminalUIPlayer;
@@ -26,6 +27,7 @@ fn choose_player(side: &str) -> Box<dyn players::Player> {
             "MonkePlayer",
         ),
         (Box::new(TerminalUIPlayer::new()), "TerminalUIPlayer"),
+        (Box::new(BfsMinimaxPlayer::new()), "BfsMinimaxPlayer"),
     ];
     loop {
         println!("Please pick among the following options for {side}:",);

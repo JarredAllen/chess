@@ -21,6 +21,7 @@ dependencies = [
 name = "backend"
 version = "0.1.0"
 dependencies = [
+ "bfs-minimax",
  "bitboard",
  "board",
  "monke",
@@ -33,6 +34,16 @@ name = "base64"
 version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
+
+[[package]]
+name = "bfs-minimax"
+version = "0.1.0"
+dependencies = [
+ "bitboard",
+ "board",
+ "players",
+ "rand",
+]
 
 [[package]]
 name = "bitboard"

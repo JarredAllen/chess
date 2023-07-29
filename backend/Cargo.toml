@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitboard = { version = "0.1.0", path = "../board/bitboard" }
-board = { version = "0.1.0", path = "../board" }
-monke = { version = "0.1.0", path = "../players/monke" }
-players = { version = "0.1.0", path = "../players" }
-terminal-ui = { version = "0.1.0", path = "../players/terminal-ui" }
+bitboard.path = "../board/bitboard"
+board.path = "../board"
+bfs-minimax.path = "../players/bfs-minimax"
+monke.path = "../players/monke"
+players.path = "../players"
+terminal-ui.path = "../players/terminal-ui"

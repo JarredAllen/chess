@@ -8,6 +8,7 @@ members = [
     "lib/utils",
     "lib/interner",
     "players",
+    "players/bfs-minimax",
     "players/monke",
     "players/terminal-ui",
 ]
