@@ -16,6 +16,9 @@ magic-search = ["dep:rand"]
 name = "magic-bitboard-search"
 required-features = ["magic-search"]
 
+[[bin]]
+name = "magic-bitboard-generation"
+
 [dev-dependencies]
 games_database = { path = "../../games_database" }
 quickcheck.workspace = true
