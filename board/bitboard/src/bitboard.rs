@@ -167,6 +167,18 @@ impl Bitboard {
                 .union(Bitboard::from_board_square(square.offset(-1, 2)))
                 .union(Bitboard::from_board_square(square.offset(-1, -2)))
         }
+
+        /// Get the squares that a white pawn can threaten
+        pub const fn white_pawn_attacks(square: BoardSquare) -> Self {
+            Bitboard::from_board_square(square.offset(1, 1))
+                .union(Bitboard::from_board_square(square.offset(1, -1)))
+        }
+
+        /// Get the squares that a black pawn can threaten
+        pub const fn black_pawn_attacks(square: BoardSquare) -> Self {
+            Bitboard::from_board_square(square.offset(-1, 1))
+                .union(Bitboard::from_board_square(square.offset(-1, -1)))
+        }
     }
 
     /// Gets the bitboard representing the "middle" of a rook move.
@@ -247,26 +259,12 @@ impl Bitboard {
                 .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Pawn, Color::White) => self
                 .squares_iter()
-                .flat_map(|sq| {
-                    BoardSquareOffset::WHITE_PAWN_ATTACKS
-                        .into_iter()
-                        .map(move |offset| offset.offset(sq))
-                })
-                .filter(|sq| sq.is_valid())
-                .fold(Self::empty(), |board, square| {
-                    board.union(Bitboard::from_board_square(square))
-                }),
+                .map(Self::white_pawn_attacks)
+                .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Pawn, Color::Black) => self
                 .squares_iter()
-                .flat_map(|sq| {
-                    BoardSquareOffset::BLACK_PAWN_ATTACKS
-                        .into_iter()
-                        .map(move |offset| offset.offset(sq))
-                })
-                .filter(|sq| sq.is_valid())
-                .fold(Self::empty(), |board, square| {
-                    board.union(Bitboard::from_board_square(square))
-                }),
+                .map(Self::black_pawn_attacks)
+                .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Bishop, _) => self
                 .squares_iter()
                 .map(|square| {

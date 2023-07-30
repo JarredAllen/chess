@@ -299,6 +299,10 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                     0,
                 ));
             } else if let Some(capture) = post_move.get(m.target) {
+                debug_assert!(
+                    capture.kind != PieceKind::King,
+                    "Cannot ever capture a king"
+                );
                 *post_move.piece_bitboard_mut(capture) &= !Bitboard::from_board_square(m.target);
             }
             *post_move.piece_bitboard_mut(m.piece) |= Bitboard::from_board_square(m.target);
@@ -756,14 +760,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     fn threatened_squares(&self, color: Color) -> Bitboard {
         let blockers = self.bitboard_occupied()
             & !Bitboard::from_board_square(self.king_square(color.other()));
-        let mut threatened_squares = Bitboard::from_board_square(self.king_square(color))
-            .squares_threatened(
-                Piece {
-                    kind: PieceKind::King,
-                    color,
-                },
-                blockers,
-            );
+        let mut threatened_squares = Bitboard::king_moves(self.king_square(color));
         for piece_kind in PieceKind::KINDS {
             let piece = Piece {
                 kind: piece_kind,
