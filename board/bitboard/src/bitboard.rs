@@ -8,7 +8,7 @@ use utils::debug_unreachable;
 
 /// A bitboard (which is equivalent to a `u64`)
 #[repr(transparent)]
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Bitboard(pub u64);
 
 /// Convert the given `0x88` notation offsets into a bitboard
@@ -179,6 +179,21 @@ impl Bitboard {
             Bitboard::from_board_square(square.offset(-1, 1))
                 .union(Bitboard::from_board_square(square.offset(-1, -1)))
         }
+
+        /// Get all squares on which an enemy piece could block a rook's movement
+        pub const fn rook_possible_blockers(square: BoardSquare) -> Self {
+            Bitboard::containing_rank(square)
+                .union(Bitboard::containing_file(square))
+                .intersection(Bitboard(0x7E7E7E7E_7E7E7E7E))
+                .intersection(Bitboard::from_board_square(square).negation())
+        }
+
+        /// Get all squares on which an enemy piece could block a bishop's movement
+        pub const fn bishop_possible_blockers(square: BoardSquare) -> Self {
+            Bitboard::containing_diagonals(square)
+                .intersection(Bitboard(0x7E7E7E7E_7E7E7E7E))
+                .intersection(Bitboard::from_board_square(square).negation())
+        }
     }
 
     /// Gets the bitboard representing the "middle" of a rook move.
@@ -327,9 +342,7 @@ impl Bitboard {
                 )),
         }
     }
-}
-/// Ways to query
-impl Bitboard {
+
     /// Query if the bitboard is empty
     ///
     /// ```
@@ -380,6 +393,8 @@ impl Bitboard {
 }
 
 /// Bit-wise operations for combining things
+///
+/// These are `const` equivalents to `&`, `|`, `!`
 impl Bitboard {
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
@@ -488,6 +503,90 @@ impl fmt::Display for Bitboard {
         }
         Ok(())
     }
+}
+
+/// Get the index of the bitboard for a rook on this square
+///
+/// For an invalid square, returns `127`, which is never a valid index.
+pub fn rook_magic_bitboard_index(square: BoardSquare) -> usize {
+    /// The indices (and bogus placeholders for speed)
+    const INDICES: [usize; 256] = [
+        0, 1, 2, 3, 4, 5, 6, 7, // Rank 1
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        1, 0, 3, 2, 5, 4, 7, 6, // Rank 2
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        8, 9, 10, 11, 12, 13, 14, 15, // Rank 3
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        9, 8, 11, 10, 13, 12, 15, 14, // Rank 4
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        16, 17, 18, 19, 20, 21, 22, 23, // Rank 5
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        17, 16, 19, 18, 21, 20, 23, 22, // Rank 6
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        24, 25, 26, 27, 28, 29, 30, 31, // Rank 7
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        25, 24, 27, 26, 29, 28, 31, 30, // Rank 8
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+    ];
+    INDICES[square.0 as usize]
+}
+
+/// Get the index of the bitboard for a bishop on this square
+///
+/// For an invalid square, returns `127`, which is never a valid index.
+pub fn bishop_magic_bitboard_index(square: BoardSquare) -> usize {
+    /// The indices (and bogus placeholders for speed)
+    const INDICES: [usize; 256] = [
+        0, 2, 4, 4, 4, 4, 12, 14, // Rank 1
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        0, 2, 5, 5, 5, 5, 12, 14, // Rank 2
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        0, 2, 6, 6, 6, 6, 12, 14, // Rank 3
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        0, 2, 7, 7, 7, 7, 12, 14, // Rank 4
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        1, 3, 8, 8, 8, 8, 13, 15, // Rank 5
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        1, 3, 9, 9, 9, 9, 13, 15, // Rank 6
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        1, 3, 10, 10, 10, 10, 13, 15, // Rank 7
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        1, 3, 11, 11, 11, 11, 13, 15, // Rank 8
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+        127, 127, 127, 127, 127, 127, 127, 127, // Bogus
+    ];
+    INDICES[square.0 as usize]
 }
 
 #[cfg(test)]

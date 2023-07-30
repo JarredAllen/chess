@@ -54,6 +54,7 @@ dependencies = [
  "board",
  "games_database",
  "quickcheck",
+ "rand",
  "thiserror",
  "utils",
 ]

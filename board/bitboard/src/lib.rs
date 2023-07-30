@@ -6,7 +6,7 @@ use board::{
 };
 use utils::{debug_impossible, debug_unreachable, UnreachableExpect};
 
-mod bitboard;
+pub mod bitboard;
 mod detailed_move;
 
 pub use crate::bitboard::Bitboard;

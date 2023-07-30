@@ -5,8 +5,16 @@ edition = "2021"
 
 [dependencies]
 board.path = "../../board"
+rand = { workspace = true, optional = true }
 thiserror.workspace = true
 utils = { version = "0.1.0", path = "../../lib/utils" }
+
+[features]
+magic-search = ["dep:rand"]
+
+[[bin]]
+name = "magic-bitboard-search"
+required-features = ["magic-search"]
 
 [dev-dependencies]
 games_database = { path = "../../games_database" }
