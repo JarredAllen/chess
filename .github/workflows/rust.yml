@@ -24,7 +24,7 @@ jobs:
     - name: Formatting
       run: cargo fmt --check --verbose
     - name: Clippy
-      run: cargo clippy -- --deny warnings
+      run: cargo clippy --all-features -- --deny warnings
     - name: Unused dependencies
       run: cargo +nightly udeps
   test:

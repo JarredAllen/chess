@@ -6,11 +6,12 @@ edition = "2021"
 [dependencies]
 board.path = "../../board"
 rand = { workspace = true, optional = true }
+signal-hook = { workspace = true, optional = true }
 thiserror.workspace = true
 utils = { version = "0.1.0", path = "../../lib/utils" }
 
 [features]
-magic-search = ["dep:rand"]
+magic-search = ["dep:rand", "dep:signal-hook"]
 
 [[bin]]
 name = "magic-bitboard-search"

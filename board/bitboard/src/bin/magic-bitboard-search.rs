@@ -11,7 +11,6 @@ use std::{
     path::Path,
     sync::{atomic::AtomicBool, Arc},
     thread,
-    time::Duration,
 };
 
 /// Search for a magic number to differentiate between the given keys
@@ -214,10 +213,8 @@ fn main() {
         let stop = stop.clone();
         move || find_rook_magics(stop)
     });
-    // TODO Use signals to decide when to be done
-    thread::sleep(Duration::from_secs(60));
-    println!("Stopping threads");
-    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    signal_hook::flag::register(signal_hook::consts::SIGINT, stop)
+        .expect("Failed to register signal");
     if let Err(e) = bishop.join() {
         eprintln!("Bishop task exited with error: {e:?}");
     }

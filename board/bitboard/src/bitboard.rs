@@ -182,10 +182,36 @@ impl Bitboard {
 
         /// Get all squares on which an enemy piece could block a rook's movement
         pub const fn rook_possible_blockers(square: BoardSquare) -> Self {
-            Bitboard::containing_rank(square)
-                .union(Bitboard::containing_file(square))
-                .intersection(Bitboard(0x7E7E7E7E_7E7E7E7E))
-                .intersection(Bitboard::from_board_square(square).negation())
+            let source_rank = (square.0 & 0x70) >> 4;
+            let source_file = square.0 & 0x07;
+            let mut newly_threatened = Bitboard::empty();
+            {
+                let mut target_rank = 1;
+                while target_rank < 7 {
+                    if target_rank == source_rank {
+                        target_rank += 1;
+                        continue;
+                    }
+                    newly_threatened = newly_threatened.union(Bitboard::from_board_square(
+                        BoardSquare::from_rank_file(target_rank, source_file),
+                    ));
+                    target_rank += 1;
+                }
+            }
+            {
+                let mut target_file = 1;
+                while target_file < 7 {
+                    if target_file == source_file {
+                        target_file += 1;
+                        continue;
+                    }
+                    newly_threatened = newly_threatened.union(Bitboard::from_board_square(
+                        BoardSquare::from_rank_file(source_rank, target_file),
+                    ));
+                    target_file += 1;
+                }
+            }
+            newly_threatened
         }
 
         /// Get all squares on which an enemy piece could block a bishop's movement

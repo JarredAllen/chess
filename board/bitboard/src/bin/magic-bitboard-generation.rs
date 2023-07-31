@@ -156,7 +156,7 @@ fn make_rook_attack_table(magics: [(u64, usize); 32]) -> RookAttackTable {
                 let index = ((key.0 * magic_number) >> per_board.shift) as usize
                     + per_board.table_offset_begin;
                 if index >= table.len() {
-                    table.resize_with(index + 1, || Bitboard::empty());
+                    table.resize_with(index + 1, Bitboard::empty);
                 }
                 table[index] |= slow_rook_moves(square, key);
             }
@@ -203,7 +203,7 @@ fn make_bishop_attack_table(magics: [(u64, usize); 16]) -> BishopAttackTable {
                 let index = ((key.0 * magic_number) >> per_board.shift) as usize
                     + per_board.table_offset_begin;
                 if index >= table.len() {
-                    table.resize_with(index + 1, || Bitboard::empty());
+                    table.resize_with(index + 1, Bitboard::empty);
                 }
                 table[index] |= slow_bishop_moves(square, key);
             }
