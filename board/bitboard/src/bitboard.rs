@@ -3,8 +3,8 @@ use core::{
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Not},
 };
 
-use board::{BoardSquare, BoardSquareOffset, Color, Piece, PieceKind};
-use utils::debug_unreachable;
+use board::{BoardSquare, Color, Piece, PieceKind};
+use utils::{debug_impossible, debug_unreachable};
 
 /// A bitboard (which is equivalent to a `u64`)
 #[repr(transparent)]
@@ -322,47 +322,11 @@ impl Bitboard {
                 .fold(Self::empty(), |board, new| board.union(new)),
             (PieceKind::Bishop, _) => self
                 .squares_iter()
-                .map(|square| {
-                    let mut newly_threatened = Bitboard::empty();
-                    for offset in [
-                        BoardSquareOffset::from_rank_file(1, 1),
-                        BoardSquareOffset::from_rank_file(1, -1),
-                        BoardSquareOffset::from_rank_file(-1, 1),
-                        BoardSquareOffset::from_rank_file(-1, -1),
-                    ] {
-                        let mut new_square = offset.offset(square);
-                        while new_square.is_valid() {
-                            newly_threatened |= Bitboard::from(new_square);
-                            if blockers.intersects(Bitboard::from(new_square)) {
-                                break;
-                            }
-                            new_square = offset.offset(new_square);
-                        }
-                    }
-                    newly_threatened
-                })
+                .map(|square| BISHOP_MAGIC_TABLE.lookup_bishop(square, blockers))
                 .fold(Self::empty(), Bitboard::union),
             (PieceKind::Rook, _) => self
                 .squares_iter()
-                .map(|square| {
-                    let mut newly_threatened = Bitboard::empty();
-                    for offset in [
-                        BoardSquareOffset::from_rank_file(1, 0),
-                        BoardSquareOffset::from_rank_file(-1, 0),
-                        BoardSquareOffset::from_rank_file(0, 1),
-                        BoardSquareOffset::from_rank_file(0, -1),
-                    ] {
-                        let mut new_square = offset.offset(square);
-                        while new_square.is_valid() {
-                            newly_threatened |= Bitboard::from(new_square);
-                            if blockers.intersects(Bitboard::from(new_square)) {
-                                break;
-                            }
-                            new_square = offset.offset(new_square);
-                        }
-                    }
-                    newly_threatened
-                })
+                .map(|square| ROOK_MAGIC_TABLE.lookup_rook(square, blockers))
                 .fold(Self::empty(), Bitboard::union),
             // Break the queen down into a rook and a bishop
             (PieceKind::Queen, _) => self
@@ -548,7 +512,7 @@ impl fmt::Display for Bitboard {
 /// Get the index of the bitboard for a rook on this square
 ///
 /// For an invalid square, returns `127`, which is never a valid index.
-pub fn rook_magic_bitboard_index(square: BoardSquare) -> usize {
+pub const fn rook_magic_bitboard_index(square: BoardSquare) -> usize {
     /// The indices (and bogus placeholders for speed)
     const INDICES: [usize; 256] = [
         0, 1, 2, 3, 4, 5, 6, 7, // Rank 1
@@ -586,11 +550,27 @@ pub fn rook_magic_bitboard_index(square: BoardSquare) -> usize {
     ];
     INDICES[square.0 as usize]
 }
+/// The bishop magic table
+const ROOK_MAGIC_TABLE: &MagicAttackTable<32> = {
+    #[repr(align(8))]
+    struct AlignedBytes<const N: usize>([u8; N]);
+    const TABLE_NUM_BYTES: usize = include_bytes!("../rook_attacks.bin").len();
+    /// The raw bytes read from disk
+    const BYTES: &AlignedBytes<TABLE_NUM_BYTES> =
+        &AlignedBytes(*include_bytes!("../rook_attacks.bin"));
+    let num_table_entries = (TABLE_NUM_BYTES
+        - 32 * std::mem::size_of::<MagicAttackTablePerBoardData>())
+        / std::mem::size_of::<Bitboard>();
+    unsafe {
+        &*(std::ptr::slice_from_raw_parts(BYTES.0.as_ptr().cast::<()>(), num_table_entries)
+            as *const MagicAttackTable<32>)
+    }
+};
 
 /// Get the index of the bitboard for a bishop on this square
 ///
 /// For an invalid square, returns `127`, which is never a valid index.
-pub fn bishop_magic_bitboard_index(square: BoardSquare) -> usize {
+pub const fn bishop_magic_bitboard_index(square: BoardSquare) -> usize {
     /// The indices (and bogus placeholders for speed)
     const INDICES: [usize; 256] = [
         0, 2, 4, 4, 4, 4, 12, 14, // Rank 1
@@ -627,6 +607,90 @@ pub fn bishop_magic_bitboard_index(square: BoardSquare) -> usize {
         127, 127, 127, 127, 127, 127, 127, 127, // Bogus
     ];
     INDICES[square.0 as usize]
+}
+
+/// The bishop magic table
+const BISHOP_MAGIC_TABLE: &MagicAttackTable<16> = {
+    #[repr(align(8))]
+    struct AlignedBytes<const N: usize>([u8; N]);
+    const TABLE_NUM_BYTES: usize = include_bytes!("../bishop_attacks.bin").len();
+    /// The raw bytes read from disk
+    const BYTES: &AlignedBytes<TABLE_NUM_BYTES> =
+        &AlignedBytes(*include_bytes!("../bishop_attacks.bin"));
+    let num_table_entries = (TABLE_NUM_BYTES
+        - 16 * std::mem::size_of::<MagicAttackTablePerBoardData>())
+        / std::mem::size_of::<Bitboard>();
+    unsafe {
+        &*(std::ptr::slice_from_raw_parts(BYTES.0.as_ptr().cast::<()>(), num_table_entries)
+            as *const MagicAttackTable<16>)
+    }
+};
+
+/// The data per board in a [`MagicAttackTable`]
+#[derive(Copy, Clone)]
+struct MagicAttackTablePerBoardData {
+    /// The magic number by which to multiply
+    magic_number: u64,
+    /// The number of bits to shift after multiplying
+    shift: usize,
+    /// The index into the table at which to start indexing for this board
+    table_offset_begin: usize,
+}
+
+/// A table we can use to quickly reference bishop or rook moves
+struct MagicAttackTable<const N: usize> {
+    /// Per-bitboard data with instructions on how to index the table
+    per_board_data: [MagicAttackTablePerBoardData; N],
+    /// The bitboards containing our magic attacks
+    table: [Bitboard],
+}
+impl MagicAttackTable<16> {
+    /// Look up the squares threatened by a bishop located here
+    const fn lookup_bishop(&self, source: BoardSquare, blockers: Bitboard) -> Bitboard {
+        let mask = Bitboard::bishop_possible_blockers(source);
+        let board_index = bishop_magic_bitboard_index(source);
+        let board_data = self.per_board_data[board_index];
+        let attack_index = (mask
+            .intersection(blockers)
+            .0
+            .wrapping_mul(board_data.magic_number)
+            >> board_data.shift) as usize
+            + board_data.table_offset_begin;
+        {
+            let table_end = if board_index == 15 {
+                self.table.len()
+            } else {
+                self.per_board_data[board_index + 1].table_offset_begin
+            };
+            debug_impossible!(attack_index >= table_end);
+        }
+        self.table[attack_index].intersection(Bitboard::containing_diagonals(source))
+    }
+}
+impl MagicAttackTable<32> {
+    /// Look up the squares threatened by a bishop located here
+    const fn lookup_rook(&self, source: BoardSquare, blockers: Bitboard) -> Bitboard {
+        let mask = Bitboard::rook_possible_blockers(source);
+        let board_index = rook_magic_bitboard_index(source);
+        let board_data = self.per_board_data[board_index];
+        let attack_index = (mask
+            .intersection(blockers)
+            .0
+            .wrapping_mul(board_data.magic_number)
+            >> board_data.shift) as usize
+            + board_data.table_offset_begin;
+        {
+            let table_end = if board_index == 31 {
+                self.table.len()
+            } else {
+                self.per_board_data[board_index + 1].table_offset_begin
+            };
+            debug_impossible!(attack_index >= table_end);
+        }
+        self.table[attack_index].intersection(
+            Bitboard::containing_rank(source).union(Bitboard::containing_file(source)),
+        )
+    }
 }
 
 #[cfg(test)]

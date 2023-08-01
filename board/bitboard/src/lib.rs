@@ -1301,7 +1301,16 @@ mod tests {
                         continue 'gameloop;
                     }
                 };
-                let computed_check = board.check_status();
+                let Ok(computed_check) = std::panic::catch_unwind(|| board.check_status()) else {
+                    failure_count += 1;
+                    eprintln!(
+                        "Panic while computing if board is check\nin game {}:\nIn move `{}` from board: {}\n",
+                        game.identifier,
+                        mv.notated,
+                        board.to_fen(),
+                    );
+                    continue 'gameloop;
+                };
                 if mv.notated.check != computed_check {
                     failure_count += 1;
                     eprintln!(

@@ -149,10 +149,10 @@ fn make_rook_attack_table(magics: [(u64, usize); 32]) -> RookAttackTable {
         per_board.shift = shift;
         per_board.table_offset_begin = table.len();
         for square in BoardSquare::all_squares() {
-            if bitboard::bitboard::bishop_magic_bitboard_index(square) != index {
+            if bitboard::bitboard::rook_magic_bitboard_index(square) != index {
                 continue;
             }
-            for key in keys_from_mask(Bitboard::bishop_possible_blockers(square)) {
+            for key in keys_from_mask(Bitboard::rook_possible_blockers(square)) {
                 let index = ((key.0 * magic_number) >> per_board.shift) as usize
                     + per_board.table_offset_begin;
                 if index >= table.len() {
@@ -161,6 +161,10 @@ fn make_rook_attack_table(magics: [(u64, usize); 32]) -> RookAttackTable {
                 table[index] |= slow_rook_moves(square, key);
             }
         }
+        assert!(
+            table.len() > per_board.table_offset_begin,
+            "No entries added to table"
+        );
     }
     RookAttackTable { table, per_board }
 }
@@ -208,6 +212,10 @@ fn make_bishop_attack_table(magics: [(u64, usize); 16]) -> BishopAttackTable {
                 table[index] |= slow_bishop_moves(square, key);
             }
         }
+        assert!(
+            table.len() > per_board.table_offset_begin,
+            "No entries added to table"
+        );
     }
     BishopAttackTable { table, per_board }
 }

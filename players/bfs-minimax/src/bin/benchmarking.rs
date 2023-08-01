@@ -36,9 +36,9 @@ fn position_exploring_benchmark(depth: usize, run_duration: Duration) -> Benchma
 #[inline(never)]
 fn main() {
     // Pre-warm the cache
-    position_exploring_benchmark(2, Duration::from_millis(100));
+    position_exploring_benchmark(3, Duration::from_millis(100));
     // Evaluate a real run
-    let result = position_exploring_benchmark(3, Duration::from_secs(10));
+    let result = position_exploring_benchmark(4, Duration::from_secs(20));
     println!(
         "{} positions explored in {}ms",
         result.positions_explored,
