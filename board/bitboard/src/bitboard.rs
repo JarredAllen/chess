@@ -181,6 +181,20 @@ impl Bitboard {
         }
 
         /// Get all squares on which an enemy piece could block a rook's movement
+        ///
+        /// ```
+        /// use bitboard::Bitboard;
+        /// use board::BoardSquare;
+        ///
+        /// assert_eq!(
+        ///     Bitboard::rook_possible_blockers(BoardSquare::A1),
+        ///     Bitboard(0x00_01_01_01_01_01_01_7E),
+        /// );
+        /// assert_eq!(
+        ///     Bitboard::rook_possible_blockers(BoardSquare::A8),
+        ///     Bitboard(0x7E_01_01_01_01_01_01_00),
+        /// );
+        /// ```
         pub const fn rook_possible_blockers(square: BoardSquare) -> Self {
             let source_rank = (square.0 & 0x70) >> 4;
             let source_file = square.0 & 0x07;
@@ -217,7 +231,7 @@ impl Bitboard {
         /// Get all squares on which an enemy piece could block a bishop's movement
         pub const fn bishop_possible_blockers(square: BoardSquare) -> Self {
             Bitboard::containing_diagonals(square)
-                .intersection(Bitboard(0x7E7E7E7E_7E7E7E7E))
+                .intersection(Bitboard(0x007E7E7E_7E7E7E00))
                 .intersection(Bitboard::from_board_square(square).negation())
         }
     }
@@ -658,6 +672,45 @@ mod tests {
                 Bitboard::containing_diagonals(square)
                     .contains(Bitboard::from_board_square(square)),
                 "{square} not contained in its diagonal",
+            );
+        }
+    }
+
+    #[test]
+    fn check_bishop_blockers_contained_in_diagonals() {
+        for square in BoardSquare::all_squares() {
+            let diagonals = Bitboard::containing_diagonals(square);
+            let blockers = Bitboard::bishop_possible_blockers(square);
+            assert!(diagonals.contains(blockers));
+            let differences = diagonals.0.count_ones() - blockers.0.count_ones();
+            let expected_difference = match square.to_rank_file().unwrap() {
+                (0 | 7, 0 | 7) => 2,
+                (_, 0 | 7) | (0 | 7, _) => 3,
+                _ => 5,
+            };
+            assert_eq!(
+                differences, expected_difference,
+                "For {square} difference was {differences} (expected {expected_difference}), blockers {blockers:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn check_rook_blockers_contained_in_ranks_files() {
+        for square in BoardSquare::all_squares() {
+            let rank_file =
+                Bitboard::containing_rank(square).union(Bitboard::containing_file(square));
+            let blockers = Bitboard::rook_possible_blockers(square);
+            assert!(rank_file.contains(blockers));
+            let differences = rank_file.0.count_ones() - blockers.0.count_ones();
+            let expected_difference = match square.to_rank_file().unwrap() {
+                (0 | 7, 0 | 7) => 3,
+                (_, 0 | 7) | (0 | 7, _) => 4,
+                _ => 5,
+            };
+            assert_eq!(
+                differences, expected_difference,
+                "For {square} difference was {differences} (expected {expected_difference}), blockers {blockers:?}",
             );
         }
     }
