@@ -3,12 +3,25 @@
 use bitboard::Bitboard;
 use board::{BoardSquare, BoardSquareOffset};
 
+use clap::Parser;
+
 use std::{
     fs,
     io::{self, Write},
     mem,
-    path::Path,
+    path::{Path, PathBuf},
 };
+
+/// Take the magic numbers found and turn them into attack tables
+#[derive(Parser)]
+struct CliArgs {
+    /// If set, check that the file is correct instead of writing it.
+    #[arg(long)]
+    check: bool,
+    /// The path to the files for magic numbers and tables
+    #[arg(long, default_value_t = String::from("."))]
+    file_path: String,
+}
 
 /// Load the bitboards stored in the indicated file.
 ///
@@ -85,20 +98,49 @@ impl<const N: usize> AttackTable<N> {
     /// Write this table to the given file on disk
     fn write_table(&self, path: impl AsRef<Path>) -> io::Result<()> {
         let mut file = fs::File::create(path)?;
-        file.write_all(unsafe {
+        let header = unsafe {
             std::slice::from_raw_parts(
                 self.per_board.as_ptr().cast::<u8>(),
                 mem::size_of::<[PerBoardData; N]>(),
             )
-        })?;
-        file.write_all(unsafe {
+        };
+        let body = unsafe {
             std::slice::from_raw_parts(
                 self.table.as_ptr().cast::<u8>(),
                 self.table.len() * mem::size_of::<Bitboard>(),
             )
-        })?;
+        };
+        file.write_all(header)?;
+        file.write_all(body)?;
         file.sync_all()?;
         Ok(())
+    }
+
+    /// Check that the given file on disk matches what we would ouput from [`Self::write_table`]
+    fn validate_table(&self, path: impl AsRef<Path>) -> io::Result<bool> {
+        let file_data = fs::read(path)?;
+        let header = unsafe {
+            std::slice::from_raw_parts(
+                self.per_board.as_ptr().cast::<u8>(),
+                mem::size_of::<[PerBoardData; N]>(),
+            )
+        };
+        let body = unsafe {
+            std::slice::from_raw_parts(
+                self.table.as_ptr().cast::<u8>(),
+                self.table.len() * mem::size_of::<Bitboard>(),
+            )
+        };
+        if Some(header) != file_data.get(..header.len()) {
+            // Header mismatch
+            return Ok(false);
+        }
+        if Some(body) != file_data.get(header.len()..) {
+            // Body mismatch
+            return Ok(false);
+        }
+        // All matches
+        Ok(true)
     }
 
     /// Get the amount of size taken up when written to disk
@@ -153,7 +195,7 @@ fn make_rook_attack_table(magics: [(u64, usize); 32]) -> RookAttackTable {
                 continue;
             }
             for key in keys_from_mask(Bitboard::rook_possible_blockers(square)) {
-                let index = ((key.0 * magic_number) >> per_board.shift) as usize
+                let index = ((key.0.wrapping_mul(magic_number)) >> per_board.shift) as usize
                     + per_board.table_offset_begin;
                 if index >= table.len() {
                     table.resize_with(index + 1, Bitboard::empty);
@@ -204,7 +246,7 @@ fn make_bishop_attack_table(magics: [(u64, usize); 16]) -> BishopAttackTable {
                 continue;
             }
             for key in keys_from_mask(Bitboard::bishop_possible_blockers(square)) {
-                let index = ((key.0 * magic_number) >> per_board.shift) as usize
+                let index = ((key.0.wrapping_mul(magic_number)) >> per_board.shift) as usize
                     + per_board.table_offset_begin;
                 if index >= table.len() {
                     table.resize_with(index + 1, Bitboard::empty);
@@ -221,26 +263,52 @@ fn make_bishop_attack_table(magics: [(u64, usize); 16]) -> BishopAttackTable {
 }
 
 fn main() {
-    let bishop_magics =
-        load_magics_from_file("bishop_magics.bin").expect("Failed to load bishop magics");
+    let args = CliArgs::parse();
+    let file_path = PathBuf::from(args.file_path);
+    let bishop_magics = load_magics_from_file(file_path.join("bishop_magics.bin"))
+        .expect("Failed to load bishop magics");
     let bishop_attack_table = make_bishop_attack_table(bishop_magics);
-    bishop_attack_table
-        .write_table("bishop_attacks.bin")
-        .expect("Failed to write bishop attack table");
-    println!(
-        "Bishop table written ({:.1}MB, {:.2}% used)",
-        bishop_attack_table.disk_size() as f32 / (1 << 20) as f32,
-        bishop_attack_table.used_fraction() * 100.0
-    );
-    let rook_magics =
-        load_magics_from_file("rook_magics.bin").expect("Failed to load bishop magics");
+    if args.check {
+        let passed = bishop_attack_table
+            .validate_table(file_path.join("bishop_attacks.bin"))
+            .expect("Failed to check bishop attack table");
+        if passed {
+            println!("Bishop table check passed!");
+        } else {
+            println!("Bishop table check failed :(");
+            std::process::exit(1);
+        }
+    } else {
+        bishop_attack_table
+            .write_table(file_path.join("bishop_attacks.bin"))
+            .expect("Failed to write bishop attack table");
+        println!(
+            "Bishop table written ({:.1}MB, {:.2}% used)",
+            bishop_attack_table.disk_size() as f32 / (1 << 20) as f32,
+            bishop_attack_table.used_fraction() * 100.0
+        );
+    }
+    let rook_magics = load_magics_from_file(file_path.join("rook_magics.bin"))
+        .expect("Failed to load bishop magics");
     let rook_attack_table = make_rook_attack_table(rook_magics);
-    rook_attack_table
-        .write_table("rook_attacks.bin")
-        .expect("Failed to write rook attack table");
-    println!(
-        "Rook table written ({:.1}MB, {:.2}% used)",
-        rook_attack_table.disk_size() as f32 / (1 << 20) as f32,
-        rook_attack_table.used_fraction() * 100.0
-    );
+    if args.check {
+        let passed = rook_attack_table
+            .validate_table(file_path.join("rook_attacks.bin"))
+            .expect("Failed to write rook attack table");
+        if passed {
+            println!("Rook table check passed!");
+        } else {
+            println!("Rook table check failed :(");
+            std::process::exit(1);
+        }
+    } else {
+        rook_attack_table
+            .write_table(file_path.join("rook_attacks.bin"))
+            .expect("Failed to write rook attack table");
+        println!(
+            "Rook table written ({:.1}MB, {:.2}% used)",
+            rook_attack_table.disk_size() as f32 / (1 << 20) as f32,
+            rook_attack_table.used_fraction() * 100.0
+        );
+    }
 }

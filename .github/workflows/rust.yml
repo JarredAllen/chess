@@ -33,3 +33,5 @@ jobs:
     - uses: actions/checkout@v3
     - name: Test
       run: cargo test --workspace
+    - name: Check Generated Bitboards
+      run: cargo run -p bitboard --bin magic-bitboard-generation --features=magic-generation -- --check --file-path board/bitboard/
