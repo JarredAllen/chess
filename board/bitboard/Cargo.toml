@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 board.path = "../../board"
+clap = { workspace = true, features = ["derive"], optional = true }
 rand = { workspace = true, optional = true }
 signal-hook = { workspace = true, optional = true }
 thiserror.workspace = true
@@ -12,6 +13,7 @@ utils = { version = "0.1.0", path = "../../lib/utils" }
 
 [features]
 magic-search = ["dep:rand", "dep:signal-hook"]
+magic-generation = ["dep:clap"]
 
 [[bin]]
 name = "magic-bitboard-search"
@@ -19,6 +21,7 @@ required-features = ["magic-search"]
 
 [[bin]]
 name = "magic-bitboard-generation"
+required-features = ["magic-generation"]
 
 [dev-dependencies]
 games_database = { path = "../../games_database" }
