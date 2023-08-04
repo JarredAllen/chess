@@ -12,7 +12,7 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 ///
 /// No special tricks are done
 #[derive(Debug)]
-pub struct BfsMinimaxPlayer {
+pub struct BfsMinimaxPlayer<EvalFunc> {
     /// The state of the board
     pub board: BitboardRepresentation,
     /// The depth of tree to explore
@@ -25,26 +25,31 @@ pub struct BfsMinimaxPlayer {
     ///
     /// TODO Measure CPU usage instead of wall time for extra consistency
     pub searching_time: Duration,
+    /// The function to use to evaluate a board
+    position_evaluation: EvalFunc,
 }
 
-impl BfsMinimaxPlayer {
+impl<EvalFunc> BfsMinimaxPlayer<EvalFunc> {
     /// Create a new player with the initial board state
-    pub fn new() -> Self {
-        Self::with_depth(3)
-    }
-    /// Create a new player with the initial board state, to explore to the given depth
-    pub fn with_depth(depth: usize) -> Self {
+    ///
+    /// # Arguments
+    /// - `depth`: The depth to which to search minimax
+    /// - `position_evaluation`: The function to use when evaluating
+    pub fn new(depth: usize, position_evaluation: EvalFunc) -> Self {
         Self {
             board: BitboardRepresentation::INITIAL_STATE,
             depth,
             rng: SmallRng::from_entropy(),
             positions_explored: 0,
             searching_time: Duration::ZERO,
+            position_evaluation,
         }
     }
 }
 
-impl players::Player for BfsMinimaxPlayer {
+impl<EvalFunc: Fn(&BitboardRepresentation, Color) -> PositionEvaluation> players::Player
+    for BfsMinimaxPlayer<EvalFunc>
+{
     fn position(&mut self, fen: &str, moves: &[LongAlgebraicNotationMove]) {
         let mut board = BitboardRepresentation::from_fen(fen);
         for mv in moves {
@@ -62,13 +67,14 @@ impl players::Player for BfsMinimaxPlayer {
     fn make_move(&mut self) -> LongAlgebraicNotationMove {
         let start = std::time::Instant::now();
         let mut positions_explored = 0;
-        let (mv, _eval) = evaluate_position(
+        let (mv, _eval) = evaluate_position_tree(
             &self.board,
             &mut self.rng,
             self.depth,
             PositionEvaluation::MIN,
             PositionEvaluation::MAX,
             &mut positions_explored,
+            &self.position_evaluation,
         );
         let elapsed = start.elapsed();
         self.positions_explored += positions_explored;
@@ -85,9 +91,9 @@ impl players::Player for BfsMinimaxPlayer {
     }
 }
 
-impl Default for BfsMinimaxPlayer {
+impl<EvalFunc: Default> Default for BfsMinimaxPlayer<EvalFunc> {
     fn default() -> Self {
-        Self::new()
+        Self::new(4, EvalFunc::default())
     }
 }
 
@@ -167,13 +173,22 @@ impl std::ops::Neg for PositionEvaluation {
 }
 
 /// Evaluate the given position and return our evaluation and the best move to make
-fn evaluate_position(
+///
+/// # Arguments
+/// - `position`: The positions at the root of the tree, to evaluate from
+/// - `rng`: An RNG to use for breaking ties
+/// - `depth`: The number of layers of internal nodes to expand
+/// - `alpha` and `beta`: Parameters for alpha-beta pruning
+/// - `positions_explored`: A counter that we increment each time we explore a move
+/// - `position_evaluation`: The function to use to evaluate an individual position
+fn evaluate_position_tree(
     position: &BitboardRepresentation,
     rng: &mut impl Rng,
     depth: usize,
     mut alpha: PositionEvaluation,
     beta: PositionEvaluation,
     positions_explored: &mut usize,
+    position_evaluation: &impl Fn(&BitboardRepresentation, Color) -> PositionEvaluation,
 ) -> (DetailedMove, PositionEvaluation) {
     let mut best_move = None;
     let mut best_eval = None;
@@ -188,15 +203,16 @@ fn evaluate_position(
         let eval = match post_move.game_outcome() {
             board::GameOutcome::InProgress => {
                 if depth == 0 {
-                    evaluate_board_no_lookahead(&post_move, position.side_to_move)
+                    position_evaluation(&post_move, position.side_to_move)
                 } else {
-                    let (_opp_mv, opp_eval) = evaluate_position(
+                    let (_opp_mv, opp_eval) = evaluate_position_tree(
                         &post_move,
                         rng,
                         depth - 1,
                         -beta,
                         -alpha,
                         positions_explored,
+                        position_evaluation,
                     );
                     -opp_eval
                 }
@@ -241,7 +257,11 @@ fn evaluate_position(
     )
 }
 
-fn evaluate_board_no_lookahead(board: &BitboardRepresentation, color: Color) -> PositionEvaluation {
+/// Evaluate the board, purely looking at the material value of pieces.
+pub fn evaluate_board_material_score(
+    board: &BitboardRepresentation,
+    color: Color,
+) -> PositionEvaluation {
     let evaluation = BoardSquare::all_squares()
         .map(|square| {
             let Some(piece) = board.get(square) else { return 0.0; };
@@ -261,4 +281,35 @@ fn evaluate_board_no_lookahead(board: &BitboardRepresentation, color: Color) -> 
         })
         .sum();
     PositionEvaluation::Evaluation(evaluation)
+}
+
+/// Evaluate the board, looking at the material value of pieces and with a small bonus for
+/// threatening more squares.
+pub fn evaluate_board_material_score_and_squares_threatened(
+    board: &BitboardRepresentation,
+    color: Color,
+) -> PositionEvaluation {
+    let material_score = BoardSquare::all_squares()
+        .map(|square| {
+            let Some(piece) = board.get(square) else { return 0.0; };
+            let piece_value = match piece.kind {
+                PieceKind::Pawn => 1.0,
+                PieceKind::Rook => 5.0,
+                PieceKind::Knight => 3.0,
+                PieceKind::Bishop => 3.2,
+                PieceKind::Queen => 9.0,
+                PieceKind::King => 0.0,
+            };
+            if piece.color == color {
+                piece_value
+            } else {
+                -piece_value
+            }
+        })
+        .sum::<f32>();
+    let squares_threatened_score = (board.threatened_squares(color).0.count_ones()
+        - board.threatened_squares(color.other()).0.count_ones())
+        as f32
+        * 0.01;
+    PositionEvaluation::Evaluation(material_score + squares_threatened_score)
 }

@@ -757,7 +757,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// * Pieces are considered to threaten a square which contains a friendly piece but which they
     ///   could otherwise move onto.
     /// * Kings are not considered to block moves.
-    fn threatened_squares(&self, color: Color) -> Bitboard {
+    pub fn threatened_squares(&self, color: Color) -> Bitboard {
         let blockers = self.bitboard_occupied()
             & !Bitboard::from_board_square(self.king_square(color.other()));
         let mut threatened_squares = Bitboard::king_moves(self.king_square(color));

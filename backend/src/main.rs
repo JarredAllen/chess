@@ -27,7 +27,20 @@ fn choose_player(side: &str) -> Box<dyn players::Player> {
             "MonkePlayer",
         ),
         (Box::new(TerminalUIPlayer::new()), "TerminalUIPlayer"),
-        (Box::new(BfsMinimaxPlayer::new()), "BfsMinimaxPlayer"),
+        (
+            Box::new(BfsMinimaxPlayer::new(
+                3,
+                bfs_minimax::evaluate_board_material_score,
+            )),
+            "Minimax just material",
+        ),
+        (
+            Box::new(BfsMinimaxPlayer::new(
+                3,
+                bfs_minimax::evaluate_board_material_score_and_squares_threatened,
+            )),
+            "Minimax threatening squares",
+        ),
     ];
     loop {
         println!("Please pick among the following options for {side}:",);

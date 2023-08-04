@@ -18,7 +18,10 @@ struct BenchmarkResult {
 #[inline(never)]
 fn position_exploring_benchmark(depth: usize, run_duration: Duration) -> BenchmarkResult {
     let positions = games_database::lichess_jan_2013_positions_sample(2048).collect::<Vec<_>>();
-    let mut player = BfsMinimaxPlayer::with_depth(depth);
+    let mut player = BfsMinimaxPlayer::new(
+        depth,
+        bfs_minimax::evaluate_board_material_score_and_squares_threatened,
+    );
     // Chosen randomly, but fixed for benchmark consistency
     let mut rng = SmallRng::seed_from_u64(2965354380665276332);
     while player.searching_time < run_duration {
