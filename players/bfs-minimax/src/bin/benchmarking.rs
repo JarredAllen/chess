@@ -12,6 +12,8 @@ struct BenchmarkResult {
     positions_explored: usize,
     /// The amount of time spent exploring positions
     duration: Duration,
+    /// The number of board positions from which we initiated a search
+    num_boards_searched: usize,
 }
 
 /// Benchmark the given depth of exploration for the given amount of time
@@ -24,15 +26,18 @@ fn position_exploring_benchmark(depth: usize, run_duration: Duration) -> Benchma
     );
     // Chosen randomly, but fixed for benchmark consistency
     let mut rng = SmallRng::seed_from_u64(2965354380665276332);
+    let mut num_boards_searched = 0;
     while player.searching_time < run_duration {
         // The board setup is not counted towards the searching time
         let board = positions.choose(&mut rng).unwrap();
         player.position(board, &[]);
         black_box(player.make_move());
+        num_boards_searched += 1;
     }
     BenchmarkResult {
         positions_explored: player.positions_explored,
         duration: player.searching_time,
+        num_boards_searched,
     }
 }
 
@@ -43,8 +48,9 @@ fn main() {
     // Evaluate a real run
     let result = position_exploring_benchmark(4, Duration::from_secs(20));
     println!(
-        "{} positions explored in {}ms",
+        "{} positions explored from {} starts in {}ms",
         result.positions_explored,
+        result.num_boards_searched,
         result.duration.as_millis(),
     );
     println!(
