@@ -37,6 +37,7 @@ impl PieceKind {
         }
     }
 
+    /// Convert from the fen letter back into what piece it is
     pub const fn from_fen_letter(c: char) -> Option<Self> {
         Some(match c {
             'P' | 'p' => Self::Pawn,
@@ -587,6 +588,7 @@ impl BoardSquare {
     /// # use board::BoardSquare;
     /// assert!(!BoardSquare::INVALID.is_valid());
     /// ```
+    #[inline]
     pub const fn is_valid(self) -> bool {
         self.0 & 0x88 == 0
     }
@@ -672,6 +674,7 @@ impl BoardSquare {
 
     /// Produce a board square from the rank and file, returning [`Self::INVALID`]` if the rank and
     /// file are not a valid square.
+    #[inline]
     pub const fn from_rank_file(rank: u8, file: u8) -> Self {
         if rank < 8 && file < 8 {
             Self(rank << 4 | file)
@@ -681,6 +684,7 @@ impl BoardSquare {
     }
 
     /// Returns the `(rank, file)` tuple if this position is valid
+    #[inline]
     pub const fn to_rank_file(self) -> Option<(u8, u8)> {
         if self.is_valid() {
             Some((self.0 >> 4, self.0 & 0x07))
@@ -703,6 +707,7 @@ impl BoardSquare {
     /// assert!(!BoardSquare::A4.offset(0, -1).is_valid());
     /// assert!(!BoardSquare::H4.offset(0, 1).is_valid());
     /// ```
+    #[inline]
     pub const fn offset(self, rank: i8, file: i8) -> Self {
         BoardSquareOffset::from_rank_file(rank, file).offset(self)
     }
@@ -729,6 +734,7 @@ impl BoardSquare {
     /// assert_eq!(BoardSquare::A1.offset_to(BoardSquare::D2).rank(), 1);
     /// assert_eq!(BoardSquare::A1.offset_to(BoardSquare::D2).file(), 3);
     /// ```
+    #[inline]
     pub const fn offset_to(self, other: Self) -> BoardSquareOffset {
         let (Some((self_rank, self_file)), Some((other_rank, other_file))) = (self.to_rank_file(), other.to_rank_file()) else {
             return BoardSquareOffset::INVALID;
@@ -842,6 +848,7 @@ impl BoardSquareOffset {
     /// In debug mode, we assert that the rank and file are both on the interval [-7,7] (which are
     /// the only possible offsets). In release mode, we wrap modulo 16 and allow for -8, which
     /// invalidates any square.
+    #[inline]
     pub const fn from_rank_file(rank: i8, file: i8) -> Self {
         debug_assert!(-8 < rank && rank < 8);
         debug_assert!(-8 < file && file < 8);
@@ -851,6 +858,7 @@ impl BoardSquareOffset {
     /// Offset the given board square
     ///
     /// If the square is already invalid, then the same square is returned unchanged.
+    #[inline]
     pub const fn offset(self, square: BoardSquare) -> BoardSquare {
         if square.is_valid() {
             BoardSquare(((self.0 & 0x77) + square.0) ^ (self.0 & 0x88))
@@ -860,16 +868,19 @@ impl BoardSquareOffset {
     }
 
     /// Gets the signed number of files associated with this offset
+    #[inline]
     pub const fn file(self) -> i8 {
         (self.0 as i8) << 4 >> 4
     }
 
     /// Gets the signed number of ranks associated with this offset
+    #[inline]
     pub const fn rank(self) -> i8 {
         (self.0 as i8) >> 4
     }
 
     /// Gets the taxicab distance metric for this offset
+    #[inline]
     pub const fn taxicab_distance(self) -> u8 {
         self.rank().unsigned_abs() + self.file().unsigned_abs()
     }
@@ -877,6 +888,7 @@ impl BoardSquareOffset {
     /// Gets the Chebyshev distance for this offset
     ///
     /// This is the number of squares moved in one direction, for whichever direction is larger.
+    #[inline]
     pub const fn chebyshev_distance(self) -> u8 {
         let rank = self.rank().unsigned_abs();
         let file = self.file().unsigned_abs();

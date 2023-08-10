@@ -143,6 +143,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     };
 
     /// The squares occupied by white's pieces
+    #[inline]
     pub const fn white_bitboard(&self) -> Bitboard {
         self.white_pawn
             .union(self.white_rook)
@@ -153,6 +154,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// The squares occupied by black's pieces
+    #[inline]
     pub const fn black_bitboard(&self) -> Bitboard {
         self.black_pawn
             .union(self.black_rook)
@@ -163,6 +165,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// Returns a bitboard of all occupied squares
+    #[inline]
     pub const fn bitboard_occupied(&self) -> Bitboard {
         self.white_bitboard().union(self.black_bitboard())
     }
@@ -170,6 +173,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// Find the piece, if any, at the given square
     ///
     /// Returns `None` if the given square is invalid.
+    #[inline]
     pub fn get(&self, square: BoardSquare) -> Option<Piece> {
         if !square.is_valid() {
             return None;
@@ -211,6 +215,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     ///
     /// Returns `Ok(())` if the move is legal, otherwise `Err(..)` containing the reason why the
     /// move is illegal.
+    #[inline]
     fn check_move_legality(&self, m: DetailedMove) -> Result<()> {
         if self.halfmove_clock >= 150 {
             // TODO Claim draw at 50 moves
@@ -317,6 +322,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     ///
     /// # Safety
     /// There's some `unreachable_unchecked` in here, if the move isn't legal.
+    #[inline]
     pub unsafe fn do_move(&mut self, m: DetailedMove) {
         match (m.piece.kind, m.piece.color) {
             (PieceKind::King, Color::White) => {
@@ -443,6 +449,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// If the given move is legal, then do it.
     ///
     /// Otherwise, this method returns `Err(..)` with why the move is illegal.
+    #[inline]
     pub fn do_move_if_legal(&mut self, m: DetailedMove) -> Result<()> {
         self.check_move_legality(m)?;
         // SAFETY:
@@ -455,6 +462,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     ///
     /// This uses the current board state to disambiguate a lot of things which are left ambiguous
     /// in default algebraic notation.
+    #[inline]
     pub fn detail_algebraic_move(
         &self,
         m: AlgebraicNotationMove,
@@ -673,6 +681,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
         })
     }
 
+    #[inline]
     pub fn detail_long_algebraic_move(
         &self,
         mv: LongAlgebraicNotationMove,
@@ -701,6 +710,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// Get the square on which the given player's King resides
+    #[inline]
     pub const fn king_square(&self, color: Color) -> BoardSquare {
         match color {
             Color::White => self.white_king,
@@ -709,6 +719,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// Get the bitboard associated with the given piece
+    #[inline]
     pub const fn piece_bitboard(&self, piece: Piece) -> Bitboard {
         match (piece.kind, piece.color) {
             (PieceKind::Pawn, Color::White) => self.white_pawn,
@@ -730,6 +741,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     ///
     /// This can't be called on [`PieceKind::King`] because we don't store the bitboard when we can
     /// only have one piece.
+    #[inline]
     pub fn piece_bitboard_mut(&mut self, piece: Piece) -> &mut Bitboard {
         match (piece.kind, piece.color) {
             (PieceKind::King, _) => panic!("No king bitboard exists"),
@@ -757,6 +769,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// * Pieces are considered to threaten a square which contains a friendly piece but which they
     ///   could otherwise move onto.
     /// * Kings are not considered to block moves.
+    #[inline]
     pub fn threatened_squares(&self, color: Color) -> Bitboard {
         let blockers = self.bitboard_occupied()
             & !Bitboard::from_board_square(self.king_square(color.other()));
@@ -778,6 +791,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     /// `false`.
     ///
     /// This function exists as a hint to speed up `is_check`, which is slow and called a lot.
+    #[inline]
     const fn quick_check_heuristic(&self, color: Color) -> bool {
         let king = self.king_square(color);
         Bitboard::containing_rank(king)
@@ -824,6 +838,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// Returns `true` if the given color's King is in check
+    #[inline]
     fn is_check(&self, color: Color) -> bool {
         if self.halfmove_clock >= 150 {
             // Can't be in check if the game has been drawn
@@ -837,11 +852,13 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     }
 
     /// Returns `true` if the given color's King is in checkmate
+    #[inline]
     fn is_checkmate(&self) -> bool {
         self.is_check(self.side_to_move) && self.legal_moves().next().is_none()
     }
 
     /// Returns the list of legal moves for the given player
+    #[inline]
     pub fn legal_moves(&self) -> impl Iterator<Item = DetailedMove> + '_ {
         let color = self.side_to_move;
         let own_pieces = match color {
@@ -996,6 +1013,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
     ///     "was {algebraic}, expected Raf8",
     /// );
     /// ```
+    #[inline]
     pub fn move_to_algebraic(&self, mv: DetailedMove) -> AlgebraicNotationMove {
         let check = {
             let mut next = self.clone();
@@ -1069,6 +1087,7 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
 impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Variant> {
     type Err = Error;
 
+    #[inline]
     fn to_fen(&self) -> String {
         let pieces = {
             let bitboard_occupied = self.bitboard_occupied();
@@ -1113,6 +1132,7 @@ impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Va
         format!("{pieces} {side_to_move} {castling} {en_passant_target} {halfmove_clock} {fullmove_coutner}")
     }
 
+    #[inline]
     fn from_fen(fen: &str) -> Self {
         let mut board = Self::EMPTY;
         let mut terms = fen.split(' ');
@@ -1186,15 +1206,18 @@ impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Va
         board
     }
 
+    #[inline]
     fn initial_state() -> Self {
         Self::from_fen(Variant::initial_fen())
     }
 
+    #[inline]
     fn make_move(&mut self, mv: AlgebraicNotationMove) -> Result<()> {
         let mv = self.detail_algebraic_move(mv)?;
         self.do_move_if_legal(mv)
     }
 
+    #[inline]
     fn make_long_move(
         &mut self,
         mv: LongAlgebraicNotationMove,
@@ -1203,6 +1226,7 @@ impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Va
         self.do_move_if_legal(mv)
     }
 
+    #[inline]
     fn check_status(&self) -> CheckStatus {
         match (self.is_check(self.side_to_move), self.is_checkmate()) {
             (false, _) => CheckStatus::None,
@@ -1211,6 +1235,7 @@ impl<Variant: board::variants::Variant> Board for BitboardRepresentationInner<Va
         }
     }
 
+    #[inline]
     fn game_outcome(&self) -> board::GameOutcome {
         if self.halfmove_clock >= 150 {
             // 75-move rule

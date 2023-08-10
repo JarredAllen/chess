@@ -57,6 +57,7 @@ macro_rules! method_via_boardsquare_array {
 
 impl Bitboard {
     /// Create an empty bitboard
+    #[inline]
     pub const fn empty() -> Self {
         Self(0)
     }
@@ -65,17 +66,20 @@ impl Bitboard {
         /// Produce a bitboard from the given board square.
         ///
         /// If the board square is invalid, this return the empty bitboard.
+        #[inline]
         pub const fn from_board_square(square: BoardSquare) -> Self {
             Bitboard(1u64 << ((((square.0 & 0x70) >> 1) | (square.0 & 0x07)) as u64))
         }
 
         /// Gets a bitboard for the rank containing the given square
+        #[inline]
         pub const fn containing_rank(square: BoardSquare) -> Self {
             let base = 1u64 << (((square.0 & 0x70) >> 1) as u64);
             Self(base * 0xFF)
         }
 
         /// Gets the diagonals containing the given square
+        #[inline]
         pub const fn containing_diagonals(square: BoardSquare) -> Self {
             let rank = (square.0 & 0x70) >> 4;
             let file = square.0 & 0x07;
@@ -119,6 +123,7 @@ impl Bitboard {
         }
 
         /// Gets a bitboard for the rank containing the given square
+        #[inline]
         pub const fn containing_file(square: BoardSquare) -> Self {
             let base = 1u64 << ((square.0 & 0x07) as u64);
             Self(base * 0x01010101_01010101)
@@ -127,6 +132,7 @@ impl Bitboard {
         /// Get all the squares that are a king move away
         ///
         /// This only includes normal king moves, not castling.
+        #[inline]
         pub const fn king_moves(square: BoardSquare) -> Self {
             Bitboard::from_board_square(square.offset(1, 1))
                 .union(Bitboard::from_board_square(square.offset(1, 0)))
@@ -142,6 +148,7 @@ impl Bitboard {
         /// Get all the squares that are a king move away
         ///
         /// This includes castling
+        #[inline]
         pub const fn king_moves_with_castling(square: BoardSquare) -> Self {
             Bitboard::from_board_square(square.offset(1, 1))
                 .union(Bitboard::from_board_square(square.offset(1, 0)))
@@ -157,6 +164,7 @@ impl Bitboard {
         }
 
         /// Get all the squares that are a knight move away
+        #[inline]
         pub const fn knight_moves(square: BoardSquare) -> Self {
             Bitboard::from_board_square(square.offset(2, 1))
                 .union(Bitboard::from_board_square(square.offset(2, -1)))
@@ -169,12 +177,14 @@ impl Bitboard {
         }
 
         /// Get the squares that a white pawn can threaten
+        #[inline]
         pub const fn white_pawn_attacks(square: BoardSquare) -> Self {
             Bitboard::from_board_square(square.offset(1, 1))
                 .union(Bitboard::from_board_square(square.offset(1, -1)))
         }
 
         /// Get the squares that a black pawn can threaten
+        #[inline]
         pub const fn black_pawn_attacks(square: BoardSquare) -> Self {
             Bitboard::from_board_square(square.offset(-1, 1))
                 .union(Bitboard::from_board_square(square.offset(-1, -1)))
@@ -195,6 +205,7 @@ impl Bitboard {
         ///     Bitboard(0x7E_01_01_01_01_01_01_00),
         /// );
         /// ```
+        #[inline]
         pub const fn rook_possible_blockers(square: BoardSquare) -> Self {
             let source_rank = (square.0 & 0x70) >> 4;
             let source_file = square.0 & 0x07;
@@ -229,6 +240,7 @@ impl Bitboard {
         }
 
         /// Get all squares on which an enemy piece could block a bishop's movement
+        #[inline]
         pub const fn bishop_possible_blockers(square: BoardSquare) -> Self {
             Bitboard::containing_diagonals(square)
                 .intersection(Bitboard(0x007E7E7E_7E7E7E00))
@@ -239,6 +251,7 @@ impl Bitboard {
     /// Gets the bitboard representing the "middle" of a rook move.
     ///
     /// This does not contain the start or end squares.
+    #[inline]
     pub const fn rook_move_middle(start: BoardSquare, end: BoardSquare) -> Self {
         let Some((start_rank, start_file)) = start.to_rank_file() else { return Self::empty() };
         let Some((end_rank, end_file)) = end.to_rank_file() else { return Self::empty() };
@@ -275,6 +288,7 @@ impl Bitboard {
     /// Gets the bitboard representing the "middle" of a rook move.
     ///
     /// This does not contain the start or end squares.
+    #[inline]
     pub const fn bishop_move_middle(start: BoardSquare, end: BoardSquare) -> Self {
         let Some((start_rank, start_file)) = start.to_rank_file() else { return Self::empty() };
         let Some((end_rank, end_file)) = end.to_rank_file() else { return Self::empty() };
@@ -302,6 +316,7 @@ impl Bitboard {
     ///
     /// For the purposes of this, we assume that the squares blocked are enemy pieces that we can
     /// capture, so those squares are threatened.
+    #[inline]
     pub fn squares_threatened(self, piece: Piece, blockers: Self) -> Self {
         match (piece.kind, piece.color) {
             (PieceKind::King, _) => self
@@ -354,16 +369,19 @@ impl Bitboard {
     /// assert!(Bitboard::empty().is_empty());
     /// assert!(!Bitboard(0x01).is_empty());
     /// ```
+    #[inline]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 
     /// Returns true if `self & other` is not empty
+    #[inline]
     pub const fn intersects(self, other: Self) -> bool {
         self.0 & other.0 != 0
     }
 
     /// Returns true if `self & other == other`
+    #[inline]
     pub const fn contains(self, other: Self) -> bool {
         self.0 & other.0 == other.0
     }
@@ -384,6 +402,7 @@ impl Bitboard {
     /// );
     /// assert_eq!(Bitboard(!0).squares_iter().count(), 64);
     /// ```
+    #[inline]
     pub fn squares_iter(self) -> impl Iterator<Item = BoardSquare> {
         (0..=63)
             .filter(move |&offset| self.0 & (1 << offset) != 0)
@@ -391,6 +410,7 @@ impl Bitboard {
     }
 
     /// Returns the number of bits which are set
+    #[inline]
     pub fn num_set(self) -> u32 {
         self.0.count_ones()
     }
@@ -400,14 +420,17 @@ impl Bitboard {
 ///
 /// These are `const` equivalents to `&`, `|`, `!`
 impl Bitboard {
+    #[inline]
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
     }
 
+    #[inline]
     pub const fn intersection(self, other: Self) -> Self {
         Self(self.0 & other.0)
     }
 
+    #[inline]
     pub const fn negation(self) -> Self {
         Self(!self.0)
     }
@@ -416,6 +439,7 @@ impl Bitboard {
 impl BitOr<Bitboard> for Bitboard {
     type Output = Self;
 
+    #[inline]
     fn bitor(self, rhs: Self) -> Self::Output {
         self.union(rhs)
     }
@@ -423,6 +447,7 @@ impl BitOr<Bitboard> for Bitboard {
 impl BitOr<BoardSquare> for Bitboard {
     type Output = Self;
 
+    #[inline]
     fn bitor(self, rhs: BoardSquare) -> Self::Output {
         self.union(Self::from(rhs))
     }
@@ -431,6 +456,7 @@ impl<T> BitOrAssign<T> for Bitboard
 where
     Bitboard: BitOr<T, Output = Bitboard>,
 {
+    #[inline]
     fn bitor_assign(&mut self, rhs: T) {
         *self = *self | rhs
     }
@@ -438,6 +464,7 @@ where
 impl BitAnd<Bitboard> for Bitboard {
     type Output = Self;
 
+    #[inline]
     fn bitand(self, rhs: Self) -> Self::Output {
         self.intersection(rhs)
     }
@@ -446,18 +473,21 @@ impl<T> BitAndAssign<T> for Bitboard
 where
     Bitboard: BitAnd<T, Output = Bitboard>,
 {
+    #[inline]
     fn bitand_assign(&mut self, rhs: T) {
         *self = *self & rhs
     }
 }
 impl Not for Bitboard {
     type Output = Self;
+    #[inline]
     fn not(self) -> Self::Output {
         self.negation()
     }
 }
 
 impl From<BoardSquare> for Bitboard {
+    #[inline]
     fn from(value: BoardSquare) -> Self {
         Self::from_board_square(value)
     }
@@ -570,6 +600,7 @@ const ROOK_MAGIC_TABLE: &MagicAttackTable<32> = {
 /// Get the index of the bitboard for a bishop on this square
 ///
 /// For an invalid square, returns `127`, which is never a valid index.
+#[inline]
 pub const fn bishop_magic_bitboard_index(square: BoardSquare) -> usize {
     /// The indices (and bogus placeholders for speed)
     const INDICES: [usize; 256] = [
@@ -646,6 +677,7 @@ struct MagicAttackTable<const N: usize> {
 }
 impl MagicAttackTable<16> {
     /// Look up the squares threatened by a bishop located here
+    #[inline]
     const fn lookup_bishop(&self, source: BoardSquare, blockers: Bitboard) -> Bitboard {
         let mask = Bitboard::bishop_possible_blockers(source);
         let board_index = bishop_magic_bitboard_index(source);
@@ -669,6 +701,7 @@ impl MagicAttackTable<16> {
 }
 impl MagicAttackTable<32> {
     /// Look up the squares threatened by a bishop located here
+    #[inline]
     const fn lookup_rook(&self, source: BoardSquare, blockers: Bitboard) -> Bitboard {
         let mask = Bitboard::rook_possible_blockers(source);
         let board_index = rook_magic_bitboard_index(source);
