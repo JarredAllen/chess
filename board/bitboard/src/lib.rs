@@ -1320,10 +1320,11 @@ mod tests {
             let mut board = BitboardRepresentation::initial_state();
             for mv in &game.moves {
                 let board_copy = board.clone();
-                board = match std::panic::catch_unwind(move || {
+                let try_move = std::panic::catch_unwind(move || {
                     board.make_move(mv.notated)?;
                     Ok::<_, Error>(board)
-                }) {
+                });
+                board = match try_move {
                     Ok(Ok(board)) => board,
                     Err(_) => {
                         failure_count += 1;

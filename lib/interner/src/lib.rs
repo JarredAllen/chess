@@ -14,6 +14,12 @@ use std::{
 pub struct LockedInterner {
     inner: RwLock<OnceLock<Interner>>,
 }
+impl Default for LockedInterner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LockedInterner {
     /// Construct a new string interner
     ///
