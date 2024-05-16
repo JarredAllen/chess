@@ -253,8 +253,12 @@ impl Bitboard {
     /// This does not contain the start or end squares.
     #[inline]
     pub const fn rook_move_middle(start: BoardSquare, end: BoardSquare) -> Self {
-        let Some((start_rank, start_file)) = start.to_rank_file() else { return Self::empty() };
-        let Some((end_rank, end_file)) = end.to_rank_file() else { return Self::empty() };
+        let Some((start_rank, start_file)) = start.to_rank_file() else {
+            return Self::empty();
+        };
+        let Some((end_rank, end_file)) = end.to_rank_file() else {
+            return Self::empty();
+        };
         if start_rank == end_rank {
             let file_dir = if end_file > start_file { 1 } else { -1 };
             let mut board = Bitboard::empty();
@@ -290,8 +294,12 @@ impl Bitboard {
     /// This does not contain the start or end squares.
     #[inline]
     pub const fn bishop_move_middle(start: BoardSquare, end: BoardSquare) -> Self {
-        let Some((start_rank, start_file)) = start.to_rank_file() else { return Self::empty() };
-        let Some((end_rank, end_file)) = end.to_rank_file() else { return Self::empty() };
+        let Some((start_rank, start_file)) = start.to_rank_file() else {
+            return Self::empty();
+        };
+        let Some((end_rank, end_file)) = end.to_rank_file() else {
+            return Self::empty();
+        };
         debug_assert!(
             start_rank.abs_diff(end_rank) == start_file.abs_diff(end_file),
             "Unreachable: Bitboard for illegal bishop move"

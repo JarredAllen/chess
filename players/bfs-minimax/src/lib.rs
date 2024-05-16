@@ -264,7 +264,9 @@ pub fn evaluate_board_material_score(
 ) -> PositionEvaluation {
     let evaluation = BoardSquare::all_squares()
         .map(|square| {
-            let Some(piece) = board.get(square) else { return 0.0; };
+            let Some(piece) = board.get(square) else {
+                return 0.0;
+            };
             let piece_value = match piece.kind {
                 PieceKind::Pawn => 1.0,
                 PieceKind::Rook => 5.0,
@@ -291,7 +293,9 @@ pub fn evaluate_board_material_score_and_squares_threatened(
 ) -> PositionEvaluation {
     let material_score = BoardSquare::all_squares()
         .map(|square| {
-            let Some(piece) = board.get(square) else { return 0.0; };
+            let Some(piece) = board.get(square) else {
+                return 0.0;
+            };
             let piece_value = match piece.kind {
                 PieceKind::Pawn => 1.0,
                 PieceKind::Rook => 5.0,

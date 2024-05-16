@@ -548,8 +548,10 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                 let source = match (from_file, from_rank) {
                     (Some(file), Some(rank)) => BoardSquare::from_rank_file(rank, file),
                     _ => {
-                        let mut pieces_iter =
-                            self.piece_bitboard(piece).squares_iter().filter(|square| {
+                        let mut pieces_iter = self
+                            .piece_bitboard(piece)
+                            .squares_iter()
+                            .filter(|square| {
                                 let Some((rank, file)) = square.to_rank_file() else {
                                     return false;
                                 };
@@ -559,7 +561,8 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                                 if from_file.is_some_and(|f| file != f) {
                                     return false;
                                 }
-                                let Some((target_rank, target_file)) = to_square.to_rank_file() else {
+                                let Some((target_rank, target_file)) = to_square.to_rank_file()
+                                else {
                                     return false;
                                 };
                                 // Check that the move is legal for the kind of piece
@@ -579,7 +582,8 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                                             } else if target_rank == 3 && rank == 1 {
                                                 // Double pawn move only if the middle square is
                                                 // clear
-                                                self.get(BoardSquare::from_rank_file(2, file)).is_none()
+                                                self.get(BoardSquare::from_rank_file(2, file))
+                                                    .is_none()
                                             } else {
                                                 false
                                             }
@@ -600,7 +604,8 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                                             } else if target_rank == 4 && rank == 6 {
                                                 // Double pawn move only if the middle square is
                                                 // clear
-                                                self.get(BoardSquare::from_rank_file(5, file)).is_none()
+                                                self.get(BoardSquare::from_rank_file(5, file))
+                                                    .is_none()
                                             } else {
                                                 false
                                             }
@@ -608,8 +613,10 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                                     }
                                     (PieceKind::Rook, _) => {
                                         (rank == target_rank || file == target_file)
-                                            && !self.bitboard_occupied().intersects(Bitboard::rook_move_middle(*square, to_square))
-                                    },
+                                            && !self.bitboard_occupied().intersects(
+                                                Bitboard::rook_move_middle(*square, to_square),
+                                            )
+                                    }
                                     (PieceKind::Knight, _) => {
                                         rank.abs_diff(target_rank) == 2
                                             && file.abs_diff(target_file) == 1
@@ -618,13 +625,21 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                                     }
                                     (PieceKind::Bishop, _) => {
                                         rank.abs_diff(target_rank) == file.abs_diff(target_file)
-                                            && !self.bitboard_occupied().intersects(Bitboard::bishop_move_middle(*square, to_square))
-                                    },
+                                            && !self.bitboard_occupied().intersects(
+                                                Bitboard::bishop_move_middle(*square, to_square),
+                                            )
+                                    }
                                     (PieceKind::Queen, _) => {
                                         if rank == target_rank || file == target_file {
-                                            !self.bitboard_occupied().intersects(Bitboard::rook_move_middle(*square, to_square))
-                                        } else if rank.abs_diff(target_rank) == file.abs_diff(target_file) {
-                                            !self.bitboard_occupied().intersects(Bitboard::bishop_move_middle(*square, to_square))
+                                            !self.bitboard_occupied().intersects(
+                                                Bitboard::rook_move_middle(*square, to_square),
+                                            )
+                                        } else if rank.abs_diff(target_rank)
+                                            == file.abs_diff(target_file)
+                                        {
+                                            !self.bitboard_occupied().intersects(
+                                                Bitboard::bishop_move_middle(*square, to_square),
+                                            )
                                         } else {
                                             false
                                         }
@@ -639,22 +654,27 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
                             .filter(|square| {
                                 // Check that we aren't moving into check
                                 let mut post_move = self.clone();
-                                *post_move.piece_bitboard_mut(piece) &= !Bitboard::from_board_square(*square);
+                                *post_move.piece_bitboard_mut(piece) &=
+                                    !Bitboard::from_board_square(*square);
                                 if is_en_passant {
-                                    *post_move.piece_bitboard_mut(Piece { kind: PieceKind::Pawn, color: self.side_to_move.other() })
-                                        &= !Bitboard::from_board_square(
-                                            self.en_passant_target.offset(
-                                                match self.side_to_move {
-                                                    Color::White => -1,
-                                                    Color::Black => 1
-                                                },
-                                                0
-                                                )
-                                            );
+                                    *post_move.piece_bitboard_mut(Piece {
+                                        kind: PieceKind::Pawn,
+                                        color: self.side_to_move.other(),
+                                    }) &= !Bitboard::from_board_square(
+                                        self.en_passant_target.offset(
+                                            match self.side_to_move {
+                                                Color::White => -1,
+                                                Color::Black => 1,
+                                            },
+                                            0,
+                                        ),
+                                    );
                                 } else if let Some(capture) = post_move.get(to_square) {
-                                    *post_move.piece_bitboard_mut(capture) &= !Bitboard::from_board_square(to_square);
+                                    *post_move.piece_bitboard_mut(capture) &=
+                                        !Bitboard::from_board_square(to_square);
                                 }
-                                *post_move.piece_bitboard_mut(piece) |= Bitboard::from_board_square(to_square);
+                                *post_move.piece_bitboard_mut(piece) |=
+                                    Bitboard::from_board_square(to_square);
                                 !post_move.is_check(self.side_to_move)
                             });
                         let Some(source) = pieces_iter.next() else {

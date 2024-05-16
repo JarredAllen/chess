@@ -309,8 +309,12 @@ impl DetailedMove {
         if self.piece.kind != PieceKind::Pawn || self.is_capture {
             return BoardSquare::INVALID;
         }
-        let Some((source_rank, file)) = self.source.to_rank_file() else { return BoardSquare::INVALID; };
-        let Some((target_rank, _)) = self.target.to_rank_file() else { return BoardSquare::INVALID; };
+        let Some((source_rank, file)) = self.source.to_rank_file() else {
+            return BoardSquare::INVALID;
+        };
+        let Some((target_rank, _)) = self.target.to_rank_file() else {
+            return BoardSquare::INVALID;
+        };
         if source_rank.abs_diff(target_rank) == 2 {
             BoardSquare::from_rank_file((source_rank + target_rank) / 2, file)
         } else {

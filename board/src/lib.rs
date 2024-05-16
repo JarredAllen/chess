@@ -736,7 +736,9 @@ impl BoardSquare {
     /// ```
     #[inline]
     pub const fn offset_to(self, other: Self) -> BoardSquareOffset {
-        let (Some((self_rank, self_file)), Some((other_rank, other_file))) = (self.to_rank_file(), other.to_rank_file()) else {
+        let (Some((self_rank, self_file)), Some((other_rank, other_file))) =
+            (self.to_rank_file(), other.to_rank_file())
+        else {
             return BoardSquareOffset::INVALID;
         };
         BoardSquareOffset::from_rank_file(

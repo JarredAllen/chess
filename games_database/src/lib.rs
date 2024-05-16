@@ -150,7 +150,9 @@ pub fn parse_pgn_file(reader: impl io::BufRead) -> io::Result<Vec<GameEntry>> {
             Some('\n') | None => continue,
             Some('[') => {
                 let inside = line[1..line.len() - 1].trim();
-                let Some((key, value)) = inside.split_once(' ') else { continue; };
+                let Some((key, value)) = inside.split_once(' ') else {
+                    continue;
+                };
                 let value = &value[1..value.len() - 1];
                 match key {
                     "Site" => {

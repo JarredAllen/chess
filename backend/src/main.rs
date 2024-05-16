@@ -51,12 +51,15 @@ fn choose_player(side: &str) -> Box<dyn players::Player> {
         let _ = io::stdout().flush();
         let mut response = String::new();
         let Ok(_len) = io::stdin().read_line(&mut response) else {
-                continue;
-            };
+            continue;
+        };
         let Ok(selection) = response.trim().parse::<usize>() else {
-                println!("\nCouldn't parse input {:?} as a number, try again\n", response.trim());
-                continue;
-            };
+            println!(
+                "\nCouldn't parse input {:?} as a number, try again\n",
+                response.trim()
+            );
+            continue;
+        };
         if selection >= players.len() {
             println!("\nSelection {selection} out of range, try again\n");
             continue;
