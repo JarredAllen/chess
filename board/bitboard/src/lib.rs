@@ -715,9 +715,9 @@ impl<Variant: board::variants::Variant> BitboardRepresentationInner<Variant> {
             && mv.target == self.en_passant_target
             && self.en_passant_target.is_valid();
         let is_capture = is_en_passant
-            || self.get(mv.target).is_some_and(|target_piece| {
-                target_piece.color == piece.color.other()
-            });
+            || self
+                .get(mv.target)
+                .is_some_and(|target_piece| target_piece.color == piece.color.other());
         Ok(DetailedMove {
             piece,
             source: mv.source,
