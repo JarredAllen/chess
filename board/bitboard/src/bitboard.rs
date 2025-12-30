@@ -75,7 +75,7 @@ impl Bitboard {
         #[inline]
         pub const fn containing_rank(square: BoardSquare) -> Self {
             let base = 1u64 << (((square.0 & 0x70) >> 1) as u64);
-            Self(base * 0xFF)
+            Bitboard(base * 0xFF)
         }
 
         /// Gets the diagonals containing the given square
@@ -126,7 +126,7 @@ impl Bitboard {
         #[inline]
         pub const fn containing_file(square: BoardSquare) -> Self {
             let base = 1u64 << ((square.0 & 0x07) as u64);
-            Self(base * 0x01010101_01010101)
+            Bitboard(base * 0x01010101_01010101)
         }
 
         /// Get all the squares that are a king move away
