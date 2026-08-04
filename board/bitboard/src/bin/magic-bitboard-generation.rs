@@ -184,7 +184,7 @@ fn make_rook_attack_table(magics: [(u64, usize); 32]) -> RookAttackTable {
     let mut table = Vec::new();
     let mut per_board = [PerBoardData::default(); 32];
     for (index, (per_board, (magic_number, key_size))) in
-        per_board.iter_mut().zip(magics.into_iter()).enumerate()
+        per_board.iter_mut().zip(magics).enumerate()
     {
         let shift = 64 - key_size;
         per_board.magic_number = magic_number;
@@ -235,7 +235,7 @@ fn make_bishop_attack_table(magics: [(u64, usize); 16]) -> BishopAttackTable {
     let mut table = Vec::new();
     let mut per_board = [PerBoardData::default(); 16];
     for (index, (per_board, (magic_number, key_size))) in
-        per_board.iter_mut().zip(magics.into_iter()).enumerate()
+        per_board.iter_mut().zip(magics).enumerate()
     {
         let shift = 64 - key_size;
         per_board.magic_number = magic_number;

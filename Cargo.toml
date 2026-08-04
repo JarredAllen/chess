@@ -1,16 +1,16 @@
 [workspace]
-
+resolver = "2"
 members = [
-    "backend",
-    "board",
-    "board/bitboard",
-    "games_database",
-    "lib/utils",
-    "lib/interner",
-    "players",
-    "players/bfs-minimax",
-    "players/monke",
-    "players/terminal-ui",
+  "backend",
+  "board",
+  "board/bitboard",
+  "games_database",
+  "lib/utils",
+  "lib/interner",
+  "players",
+  "players/bfs-minimax",
+  "players/monke",
+  "players/terminal-ui",
 ]
 
 [workspace.dependencies]
